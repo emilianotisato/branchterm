@@ -20,6 +20,81 @@ interface Props {
   onBranchesChange?: (branches: BranchEntry[]) => void;
 }
 
+function BranchItem({
+  branch,
+  active,
+  onSelect,
+  onStartupSaved,
+}: {
+  branch: BranchEntry;
+  active: boolean;
+  onSelect: () => void;
+  onStartupSaved: (name: string, cmd: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [cmd, setCmd] = useState(branch.startupCommand ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await invoke("set_startup_command", { branch: branch.name, cmd });
+      onStartupSaved(branch.name, cmd);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={`branch-item ${active ? "active" : ""}`}>
+      <div className="branch-item-row" onClick={onSelect}>
+        <span className="branch-name" title={branch.name}>
+          {branch.name}
+        </span>
+        <button
+          className="btn-icon"
+          title="Set startup command"
+          onClick={(e) => { e.stopPropagation(); setEditing((v) => !v); }}
+        >
+          ⚙
+        </button>
+      </div>
+
+      {branch.startupCommand && !editing && (
+        <div className="startup-hint" title={branch.startupCommand}>
+          ▶ {branch.startupCommand}
+        </div>
+      )}
+
+      {editing && (
+        <div className="startup-editor" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="text"
+            placeholder="e.g. claude"
+            value={cmd}
+            onChange={(e) => setCmd(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") save();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            autoFocus
+            disabled={saving}
+          />
+          <div className="form-actions">
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              {saving ? "…" : "Save"}
+            </button>
+            <button className="btn btn-ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Props) {
   const [branches, setBranches] = useState<BranchEntry[]>([]);
   const [creating, setCreating] = useState(false);
@@ -54,6 +129,12 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
     }
   }
 
+  function handleStartupSaved(name: string, cmd: string) {
+    setBranches((prev) =>
+      prev.map((b) => b.name === name ? { ...b, startupCommand: cmd || undefined } : b)
+    );
+  }
+
   return (
     <div className="sidebar">
       <div className="sidebar-header">
@@ -74,15 +155,13 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
           <div className="empty-state">No branches yet</div>
         ) : (
           branches.map((b) => (
-            <div
+            <BranchItem
               key={b.name}
-              className={`branch-item ${activeBranch === b.name ? "active" : ""}`}
-              onClick={() => onSelectBranch(b.name)}
-            >
-              <span className="branch-name" title={b.name}>
-                {b.name}
-              </span>
-            </div>
+              branch={b}
+              active={activeBranch === b.name}
+              onSelect={() => onSelectBranch(b.name)}
+              onStartupSaved={handleStartupSaved}
+            />
           ))
         )}
       </div>

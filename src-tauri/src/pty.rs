@@ -126,7 +126,7 @@ pub fn spawn_pty(
             let pty_map_clone = Arc::clone(pty_map);
             let branch_clone = branch_name.clone();
             std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(200));
+                std::thread::sleep(std::time::Duration::from_millis(800));
                 let mut map = pty_map_clone.lock().unwrap();
                 if let Some(handle) = map.get_mut(&branch_clone) {
                     let _ = handle.write_input(format!("{cmd_str}\n").as_bytes());

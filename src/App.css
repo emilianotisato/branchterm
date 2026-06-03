@@ -95,11 +95,54 @@ html, body, #root {
   border-left-color: var(--accent);
 }
 
+.branch-item-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 4px;
+}
+
 .branch-name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 3px;
+  opacity: 0;
+  transition: opacity 0.1s;
+  flex-shrink: 0;
+}
+
+.branch-item:hover .btn-icon {
+  opacity: 1;
+}
+
+.btn-icon:hover {
+  color: var(--text);
+}
+
+.startup-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 0 14px 4px 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.startup-editor {
+  padding: 4px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .empty-state {
