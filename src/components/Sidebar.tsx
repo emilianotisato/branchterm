@@ -1,100 +1,109 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { NewTabModal, TabEntry } from "./NewTabModal";
 import { FreqCommand } from "./CommandPicker";
 
 interface BranchEntry {
   name: string;
   parentBranch: string;
   workspacePath: string;
-  startupCommand?: string;
   createdAt: string;
+  tabs: TabEntry[];
 }
 
 interface AppState {
   projectPath: string;
   branches: BranchEntry[];
+  mainTabs: TabEntry[];
 }
 
 interface Props {
-  activeBranch: string | null;
-  onSelectBranch: (branch: string) => void;
-  onBranchesChange?: (branches: BranchEntry[]) => void;
+  activeTabId: string | null;
+  onSelectTab: (tabId: string) => void;
+  onStateLoaded: (state: AppState) => void;
+  onTabCreated: (branch: string, tab: TabEntry) => void;
+  onTabClosed: (branch: string, tabId: string) => void;
 }
 
-function BranchItem({
-  branch,
+function TabRow({
+  tab,
   active,
+  canClose,
   onSelect,
-  onStartupSaved,
+  onClose,
 }: {
-  branch: BranchEntry;
+  tab: TabEntry;
   active: boolean;
+  canClose: boolean;
   onSelect: () => void;
-  onStartupSaved: (name: string, cmd: string) => void;
+  onClose: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [cmd, setCmd] = useState(branch.startupCommand ?? "");
-  const [saving, setSaving] = useState(false);
-
-  async function save() {
-    setSaving(true);
-    try {
-      await invoke("set_startup_command", { branch: branch.name, cmd });
-      onStartupSaved(branch.name, cmd);
-      setEditing(false);
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
-    <div className={`branch-item ${active ? "active" : ""}`}>
-      <div className="branch-item-row" onClick={onSelect}>
-        <span className="branch-name" title={branch.name}>
-          {branch.name}
+    <div
+      className={`tab-row ${active ? "active" : ""}`}
+      onClick={onSelect}
+    >
+      <span className="tab-row-title">{tab.title}</span>
+      {active && <span className="tab-row-dot">●</span>}
+      {canClose && (
+        <button
+          className="btn-icon tab-row-close"
+          title="Close terminal"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
+function BranchSection({
+  label,
+  tabs,
+  activeTabId,
+  onSelectTab,
+  onAddTab,
+  onCloseTab,
+}: {
+  label: string;
+  tabs: TabEntry[];
+  activeTabId: string | null;
+  onSelectTab: (tabId: string) => void;
+  onAddTab: () => void;
+  onCloseTab: (tabId: string) => void;
+}) {
+  return (
+    <div className="branch-section">
+      <div className="branch-section-header">
+        <span className="branch-section-name" title={label}>
+          {label}
         </span>
         <button
           className="btn-icon"
-          title="Set startup command"
+          style={{ opacity: 1, fontSize: "14px" }}
+          title="New terminal"
           onClick={(e) => {
             e.stopPropagation();
-            setEditing((v) => !v);
+            onAddTab();
           }}
         >
-          ⚙
+          +
         </button>
       </div>
-
-      {branch.startupCommand && !editing && (
-        <div className="startup-hint" title={branch.startupCommand}>
-          ▶ {branch.startupCommand}
-        </div>
-      )}
-
-      {editing && (
-        <div className="startup-editor" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="text"
-            placeholder="e.g. claude"
-            value={cmd}
-            onChange={(e) => setCmd(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") save();
-              if (e.key === "Escape") setEditing(false);
-            }}
-            autoFocus
-            disabled={saving}
-          />
-          <div className="form-actions">
-            <button className="btn btn-primary" onClick={save} disabled={saving}>
-              {saving ? "…" : "Save"}
-            </button>
-            <button className="btn btn-ghost" onClick={() => setEditing(false)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      {tabs.map((tab) => (
+        <TabRow
+          key={tab.id}
+          tab={tab}
+          active={activeTabId === tab.id}
+          canClose={tabs.length > 1}
+          onSelect={() => onSelectTab(tab.id)}
+          onClose={() => onCloseTab(tab.id)}
+        />
+      ))}
     </div>
   );
 }
@@ -135,9 +144,7 @@ function CommandsSection() {
   return (
     <div className="commands-section">
       <div className="commands-header" onClick={() => setExpanded((v) => !v)}>
-        <span>
-          Commands{commands.length > 0 ? ` (${commands.length})` : ""}
-        </span>
+        <span>Commands{commands.length > 0 ? ` (${commands.length})` : ""}</span>
         <div className="commands-header-actions" onClick={(e) => e.stopPropagation()}>
           {expanded && (
             <button
@@ -196,13 +203,11 @@ function CommandsSection() {
               </div>
             </div>
           )}
-
           {commands.length === 0 && !adding && (
             <div className="empty-state" style={{ fontSize: "11px", padding: "8px 14px" }}>
               No commands yet
             </div>
           )}
-
           {commands.map((c) => (
             <div key={c.id} className="cmd-item">
               <div className="cmd-item-info">
@@ -225,17 +230,24 @@ function CommandsSection() {
   );
 }
 
-export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Props) {
-  const [branches, setBranches] = useState<BranchEntry[]>([]);
+export function Sidebar({
+  activeTabId,
+  onSelectTab,
+  onStateLoaded,
+  onTabCreated,
+  onTabClosed,
+}: Props) {
+  const [appState, setAppState] = useState<AppState | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalBranch, setModalBranch] = useState<string | null>(null);
 
   useEffect(() => {
     invoke<AppState>("get_state").then((s) => {
-      setBranches(s.branches);
-      onBranchesChange?.(s.branches);
+      setAppState(s);
+      onStateLoaded(s);
     });
   }, []);
 
@@ -245,13 +257,14 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
     setLoading(true);
     setError(null);
     try {
-      await invoke("new_branch", { name });
+      const info = await invoke<{ name: string; tabs: TabEntry[] }>("new_branch", { name });
       const s = await invoke<AppState>("get_state");
-      setBranches(s.branches);
-      onBranchesChange?.(s.branches);
+      setAppState(s);
+      if (info.tabs.length > 0) {
+        onTabCreated(name, info.tabs[0]);
+      }
       setNewName("");
       setCreating(false);
-      onSelectBranch(name);
     } catch (e: unknown) {
       setError(String(e));
     } finally {
@@ -259,11 +272,47 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
     }
   }
 
-  function handleStartupSaved(name: string, cmd: string) {
-    setBranches((prev) =>
-      prev.map((b) => (b.name === name ? { ...b, startupCommand: cmd || undefined } : b))
-    );
+  function handleTabCreated(branch: string, tab: TabEntry) {
+    setAppState((prev) => {
+      if (!prev) return prev;
+      if (branch === "__main__") {
+        return { ...prev, mainTabs: [...prev.mainTabs, tab] };
+      }
+      return {
+        ...prev,
+        branches: prev.branches.map((b) =>
+          b.name === branch ? { ...b, tabs: [...b.tabs, tab] } : b
+        ),
+      };
+    });
+    onTabCreated(branch, tab);
+    setModalBranch(null);
   }
+
+  async function handleCloseTab(branch: string, tabId: string) {
+    try {
+      await invoke("close_tab", { branch, tab_id: tabId });
+      setAppState((prev) => {
+        if (!prev) return prev;
+        if (branch === "__main__") {
+          return { ...prev, mainTabs: prev.mainTabs.filter((t) => t.id !== tabId) };
+        }
+        return {
+          ...prev,
+          branches: prev.branches.map((b) =>
+            b.name === branch
+              ? { ...b, tabs: b.tabs.filter((t) => t.id !== tabId) }
+              : b
+          ),
+        };
+      });
+      onTabClosed(branch, tabId);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  if (!appState) return <div className="sidebar"><div className="sidebar-header"><span>branchterm</span></div></div>;
 
   return (
     <div className="sidebar">
@@ -272,27 +321,29 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
       </div>
 
       <div className="branches-list">
-        <div
-          className={`branch-item branch-item--main ${activeBranch === "__main__" ? "active" : ""}`}
-          onClick={() => onSelectBranch("__main__")}
-        >
-          <span className="branch-name" title="Project root terminal">
-            ⌂ main
-          </span>
-        </div>
+        <BranchSection
+          label="⌂ main"
+          tabs={appState.mainTabs}
+          activeTabId={activeTabId}
+          onSelectTab={onSelectTab}
+          onAddTab={() => setModalBranch("__main__")}
+          onCloseTab={(tabId) => handleCloseTab("__main__", tabId)}
+        />
 
-        {branches.length === 0 ? (
+        {appState.branches.map((b) => (
+          <BranchSection
+            key={b.name}
+            label={b.name}
+            tabs={b.tabs}
+            activeTabId={activeTabId}
+            onSelectTab={onSelectTab}
+            onAddTab={() => setModalBranch(b.name)}
+            onCloseTab={(tabId) => handleCloseTab(b.name, tabId)}
+          />
+        ))}
+
+        {appState.branches.length === 0 && (
           <div className="empty-state">No branches yet</div>
-        ) : (
-          branches.map((b) => (
-            <BranchItem
-              key={b.name}
-              branch={b}
-              active={activeBranch === b.name}
-              onSelect={() => onSelectBranch(b.name)}
-              onStartupSaved={handleStartupSaved}
-            />
-          ))
         )}
       </div>
 
@@ -342,8 +393,16 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
           </button>
         )}
       </div>
+
+      {modalBranch && (
+        <NewTabModal
+          branch={modalBranch}
+          onCreated={(tab) => handleTabCreated(modalBranch, tab)}
+          onClose={() => setModalBranch(null)}
+        />
+      )}
     </div>
   );
 }
 
-export type { BranchEntry };
+export type { BranchEntry, AppState };

@@ -6,15 +6,11 @@ import { invoke } from "@tauri-apps/api/core";
 import "@xterm/xterm/css/xterm.css";
 
 interface Props {
-  branchName: string;
+  tabId: string;
   active: boolean;
 }
 
-function ptyEventName(branch: string) {
-  return `pty-output-${branch.replace(/[ /]/g, "_")}`;
-}
-
-export function Terminal({ branchName, active }: Props) {
+export function Terminal({ tabId, active }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -62,24 +58,21 @@ export function Terminal({ branchName, active }: Props) {
     termRef.current = term;
     fitRef.current = fit;
 
-    // PTY output → terminal
-    listen<string>(ptyEventName(branchName), (event) => {
+    listen<string>(`pty-output-${tabId}`, (event) => {
       const bytes = Uint8Array.from(atob(event.payload), (c) => c.charCodeAt(0));
       term.write(bytes);
     }).then((unlisten) => {
       unlistenRef.current = unlisten;
     });
 
-    // Terminal input → PTY
     term.onData((data) => {
-      invoke("pty_input", { branch: branchName, data }).catch(console.error);
+      invoke("pty_input", { tab_id: tabId, data }).catch(console.error);
     });
 
-    // Resize observer
     const ro = new ResizeObserver(() => {
       fit.fit();
       invoke("pty_resize", {
-        branch: branchName,
+        tab_id: tabId,
         cols: term.cols,
         rows: term.rows,
       }).catch(console.error);
@@ -91,9 +84,8 @@ export function Terminal({ branchName, active }: Props) {
       unlistenRef.current?.();
       term.dispose();
     };
-  }, [branchName]);
+  }, [tabId]);
 
-  // Re-fit when tab becomes active
   useEffect(() => {
     if (active && fitRef.current) {
       setTimeout(() => fitRef.current?.fit(), 50);

@@ -36,10 +36,10 @@ pub fn run(project_path: PathBuf) {
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::new_branch,
-            commands::set_startup_command,
             commands::delete_branch_state,
-            commands::spawn_main_pty,
-            commands::spawn_pty,
+            commands::spawn_tab,
+            commands::new_tab,
+            commands::close_tab,
             commands::pty_input,
             commands::pty_resize,
             commands::get_commands,
