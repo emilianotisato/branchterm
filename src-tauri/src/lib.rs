@@ -3,6 +3,7 @@ use std::path::PathBuf;
 mod boot;
 mod commands;
 mod context;
+mod pty;
 mod state;
 mod workspace;
 
@@ -24,16 +25,21 @@ pub fn run(project_path: PathBuf) {
     };
 
     let ctx = context::AppContext::new(project_path, slug, app_state);
+    let pty_map = pty::new_pty_map();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(ctx)
+        .manage(pty_map)
         .setup(|_app| Ok(()))
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::new_branch,
             commands::set_startup_command,
             commands::delete_branch_state,
+            commands::spawn_pty,
+            commands::pty_input,
+            commands::pty_resize,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

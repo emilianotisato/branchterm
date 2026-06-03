@@ -3,6 +3,7 @@ use tauri::State;
 use std::time::SystemTime;
 
 use crate::context::AppContext;
+use crate::pty::{self, PtyMap};
 use crate::state::{self, AppState, BranchEntry};
 use crate::workspace;
 
@@ -71,7 +72,11 @@ pub async fn set_startup_command(
 }
 
 #[tauri::command]
-pub async fn delete_branch_state(branch: String, ctx: State<'_, AppContext>) -> Result<String, String> {
+pub async fn delete_branch_state(
+    branch: String,
+    ctx: State<'_, AppContext>,
+    pty_map: State<'_, PtyMap>,
+) -> Result<String, String> {
     let workspace_path = {
         let s = ctx.state.lock().unwrap();
         s.branches
@@ -81,6 +86,7 @@ pub async fn delete_branch_state(branch: String, ctx: State<'_, AppContext>) -> 
             .ok_or_else(|| format!("Branch '{branch}' not found in state"))?
     };
 
+    pty::kill_pty(&branch, &pty_map);
     workspace::delete_workspace(std::path::Path::new(&workspace_path))?;
 
     {
@@ -90,6 +96,51 @@ pub async fn delete_branch_state(branch: String, ctx: State<'_, AppContext>) -> 
     }
 
     Ok(workspace_path)
+}
+
+#[tauri::command]
+pub async fn spawn_pty(
+    branch: String,
+    app_handle: tauri::AppHandle,
+    ctx: State<'_, AppContext>,
+    pty_map: State<'_, PtyMap>,
+) -> Result<(), String> {
+    let (workspace_path, startup_command) = {
+        let s = ctx.state.lock().unwrap();
+        let entry = s
+            .branches
+            .iter()
+            .find(|b| b.name == branch)
+            .ok_or_else(|| format!("Branch '{branch}' not found"))?;
+        (entry.workspace_path.clone(), entry.startup_command.clone())
+    };
+
+    pty::spawn_pty(
+        branch,
+        std::path::Path::new(&workspace_path),
+        startup_command,
+        app_handle,
+        &pty_map,
+    )
+}
+
+#[tauri::command]
+pub async fn pty_input(
+    branch: String,
+    data: String,
+    pty_map: State<'_, PtyMap>,
+) -> Result<(), String> {
+    pty::write_input(&branch, &data, &pty_map)
+}
+
+#[tauri::command]
+pub async fn pty_resize(
+    branch: String,
+    cols: u16,
+    rows: u16,
+    pty_map: State<'_, PtyMap>,
+) -> Result<(), String> {
+    pty::resize_pty(&branch, cols, rows, &pty_map)
 }
 
 fn iso8601_now() -> String {
