@@ -16,7 +16,11 @@ export function MainArea({ activeBranch, openBranches, onSelectBranch }: Props) 
     for (const branch of openBranches) {
       if (!spawnedRef.current.has(branch)) {
         spawnedRef.current.add(branch);
-        invoke("spawn_pty", { branch }).catch(console.error);
+        if (branch === "__main__") {
+          invoke("spawn_main_pty").catch(console.error);
+        } else {
+          invoke("spawn_pty", { branch }).catch(console.error);
+        }
       }
     }
   }, [openBranches]);
@@ -38,7 +42,7 @@ export function MainArea({ activeBranch, openBranches, onSelectBranch }: Props) 
             className={`tab ${activeBranch === branch ? "active" : ""}`}
             onClick={() => onSelectBranch(branch)}
           >
-            {branch}
+            {branch === "__main__" ? "⌂ main" : branch}
           </div>
         ))}
       </div>

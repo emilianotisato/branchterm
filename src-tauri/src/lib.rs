@@ -37,6 +37,7 @@ pub fn run(project_path: PathBuf) {
             commands::new_branch,
             commands::set_startup_command,
             commands::delete_branch_state,
+            commands::spawn_main_pty,
             commands::spawn_pty,
             commands::pty_input,
             commands::pty_resize,

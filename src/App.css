@@ -79,6 +79,17 @@ html, body, #root {
   background: var(--bg-panel);
 }
 
+.branch-item--main {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.branch-item--main.active {
+  color: var(--text);
+}
+
 .branch-item.active {
   background: var(--bg-panel);
   border-left-color: var(--accent);

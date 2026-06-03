@@ -99,6 +99,21 @@ pub async fn delete_branch_state(
 }
 
 #[tauri::command]
+pub async fn spawn_main_pty(
+    app_handle: tauri::AppHandle,
+    ctx: State<'_, AppContext>,
+    pty_map: State<'_, PtyMap>,
+) -> Result<(), String> {
+    pty::spawn_pty(
+        "__main__".to_string(),
+        &ctx.project_path,
+        None,
+        app_handle,
+        &pty_map,
+    )
+}
+
+#[tauri::command]
 pub async fn spawn_pty(
     branch: String,
     app_handle: tauri::AppHandle,

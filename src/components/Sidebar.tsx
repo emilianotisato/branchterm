@@ -61,6 +61,15 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
       </div>
 
       <div className="branches-list">
+        <div
+          className={`branch-item branch-item--main ${activeBranch === "__main__" ? "active" : ""}`}
+          onClick={() => onSelectBranch("__main__")}
+        >
+          <span className="branch-name" title="Project root terminal">
+            ⌂ main
+          </span>
+        </div>
+
         {branches.length === 0 ? (
           <div className="empty-state">No branches yet</div>
         ) : (

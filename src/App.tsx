@@ -21,11 +21,9 @@ export default function App() {
   function handleBranchesLoaded(branches: BranchEntry[]) {
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
-    if (branches.length > 0) {
-      const names = branches.map((b) => b.name);
-      setOpenBranches(names);
-      setActiveBranch(names[0]);
-    }
+    const names = ["__main__", ...branches.map((b) => b.name)];
+    setOpenBranches(names);
+    setActiveBranch("__main__");
   }
 
   return (
