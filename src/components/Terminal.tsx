@@ -46,8 +46,10 @@ export function Terminal({ branchName, active }: Props) {
         white: "#d4d4d4",
         brightWhite: "#ffffff",
       },
-      fontFamily: '"Cascadia Code", "Fira Code", "Consolas", monospace',
+      fontFamily: '"JetBrainsMono Nerd Font Mono", "JetBrainsMono NFM", monospace',
       fontSize: 13,
+      letterSpacing: 0,
+      lineHeight: 1.2,
       cursorBlink: true,
       allowProposedApi: true,
     });
@@ -105,7 +107,6 @@ export function Terminal({ branchName, active }: Props) {
         width: "100%",
         height: "100%",
         display: active ? "block" : "none",
-        padding: "4px",
       }}
     />
   );

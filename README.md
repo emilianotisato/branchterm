@@ -1,7 +1,38 @@
-# Tauri + React + Typescript
+# branchterm
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+Parallel branch terminal manager for AI-assisted development. Uses Btrfs Copy-on-Write to create instant isolated workspaces per git branch, each with an embedded terminal.
 
-## Recommended IDE Setup
+## Requirements
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- **Arch Linux** with **Btrfs** filesystem (project dir and `~/.local/share` must be on the same Btrfs volume)
+- **Rust** + **Cargo**
+- **Node.js** + **npm**
+- **git** initialized in your project
+
+### Fonts (recommended)
+
+A [Nerd Font](https://www.nerdfonts.com/) is strongly recommended for correct icon rendering in TUI tools (lazygit, etc.). Install on Arch:
+
+```bash
+sudo pacman -S ttf-jetbrains-mono-nerd
+```
+
+branchterm uses `JetBrainsMono Nerd Font Mono` by default. Without it, terminals still work but TUI icons may render as boxes.
+
+## Development
+
+```bash
+# Run dev build (always pass your project path)
+BRANCHTERM_PROJECT=/path/to/your/project npm run tauri dev
+
+# Build release
+npm run tauri build
+```
+
+## Usage
+
+```bash
+branchterm /path/to/project
+# or from inside the project:
+branchterm .
+```
