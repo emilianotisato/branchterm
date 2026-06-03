@@ -5,6 +5,8 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let project_path = if args.len() > 1 {
         args[1].clone()
+    } else if let Ok(p) = std::env::var("BRANCHTERM_PROJECT") {
+        p
     } else {
         ".".to_string()
     };

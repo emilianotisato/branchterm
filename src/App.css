@@ -215,6 +215,31 @@ html, body, #root {
   border-color: var(--accent);
 }
 
+/* New branch form */
+.new-branch-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.form-actions .btn-primary {
+  flex: 1;
+  width: auto;
+}
+
+.error-banner {
+  padding: 6px 14px;
+  background: rgba(244, 71, 71, 0.15);
+  color: var(--danger);
+  font-size: 11px;
+  word-break: break-word;
+}
+
 /* Input */
 input[type="text"] {
   background: var(--bg);

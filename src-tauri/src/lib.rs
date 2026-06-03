@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
 mod boot;
+mod commands;
+mod context;
 mod state;
+mod workspace;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run(project_path: PathBuf) {
@@ -20,11 +23,18 @@ pub fn run(project_path: PathBuf) {
         }
     };
 
+    let ctx = context::AppContext::new(project_path, slug, app_state);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(std::sync::Mutex::new(app_state))
-        .setup(move |_app| Ok(()))
-        .invoke_handler(tauri::generate_handler![])
+        .manage(ctx)
+        .setup(|_app| Ok(()))
+        .invoke_handler(tauri::generate_handler![
+            commands::get_state,
+            commands::new_branch,
+            commands::set_startup_command,
+            commands::delete_branch_state,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
