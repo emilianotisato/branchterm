@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 mod boot;
 mod commands;
+mod commands_store;
 mod context;
 mod pty;
 mod state;
@@ -41,6 +42,9 @@ pub fn run(project_path: PathBuf) {
             commands::spawn_pty,
             commands::pty_input,
             commands::pty_resize,
+            commands::get_commands,
+            commands::save_command,
+            commands::delete_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 use std::time::SystemTime;
 
+use crate::commands_store::{self, FreqCommand};
 use crate::context::AppContext;
 use crate::pty::{self, PtyMap};
 use crate::state::{self, AppState, BranchEntry};
@@ -156,6 +157,21 @@ pub async fn pty_resize(
     pty_map: State<'_, PtyMap>,
 ) -> Result<(), String> {
     pty::resize_pty(&branch, cols, rows, &pty_map)
+}
+
+#[tauri::command]
+pub async fn get_commands() -> Result<Vec<FreqCommand>, String> {
+    commands_store::load()
+}
+
+#[tauri::command]
+pub async fn save_command(label: String, cmd: String) -> Result<FreqCommand, String> {
+    commands_store::add(label, cmd)
+}
+
+#[tauri::command]
+pub async fn delete_command(id: String) -> Result<(), String> {
+    commands_store::remove(&id)
 }
 
 fn iso8601_now() -> String {

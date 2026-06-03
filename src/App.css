@@ -299,9 +299,157 @@ html, body, #root {
   border-bottom: 2px solid var(--accent);
 }
 
+/* Commands section in sidebar */
+.commands-section {
+  border-top: 1px solid var(--border);
+  max-height: 200px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.commands-header {
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-sidebar);
+  cursor: pointer;
+  user-select: none;
+}
+
+.commands-header:hover {
+  color: var(--text);
+}
+
+.commands-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.commands-chevron {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.cmd-item {
+  padding: 5px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cmd-item:hover {
+  background: var(--bg-panel);
+}
+
+.cmd-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cmd-item-label {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cmd-item-cmd {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-family: 'Consolas', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.cmd-add-form {
+  padding: 4px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Command picker overlay */
 .terminal-area {
   flex: 1;
   overflow: hidden;
+  position: relative;
+}
+
+.cmd-picker-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 12px;
+  z-index: 10;
+}
+
+.cmd-picker {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  width: 300px;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.cmd-picker-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cmd-picker-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.cmd-picker-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cmd-picker-item:last-child {
+  border-bottom: none;
+}
+
+.cmd-picker-item:hover {
+  background: var(--bg-sidebar);
+}
+
+.cmd-picker-label {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.cmd-picker-cmd {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: 'Consolas', monospace;
 }
 
 /* New branch form */

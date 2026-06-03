@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Terminal } from "./Terminal";
+import { CommandPicker, FreqCommand } from "./CommandPicker";
 
 interface Props {
   activeBranch: string | null;
@@ -10,8 +11,9 @@ interface Props {
 
 export function MainArea({ activeBranch, openBranches, onSelectBranch }: Props) {
   const spawnedRef = useRef<Set<string>>(new Set());
+  const [commands, setCommands] = useState<FreqCommand[]>([]);
+  const [pickerBranch, setPickerBranch] = useState<string | null>(null);
 
-  // Spawn PTY whenever a branch is opened for the first time
   useEffect(() => {
     for (const branch of openBranches) {
       if (!spawnedRef.current.has(branch)) {
@@ -20,10 +22,31 @@ export function MainArea({ activeBranch, openBranches, onSelectBranch }: Props) 
           invoke("spawn_main_pty").catch(console.error);
         } else {
           invoke("spawn_pty", { branch }).catch(console.error);
+          invoke<FreqCommand[]>("get_commands")
+            .then((cmds) => {
+              if (cmds.length > 0) {
+                setCommands(cmds);
+                setPickerBranch(branch);
+              }
+            })
+            .catch(console.error);
         }
       }
     }
   }, [openBranches]);
+
+  async function handlePick(cmd: string) {
+    if (!pickerBranch) return;
+    try {
+      await invoke("pty_input", { branch: pickerBranch, data: cmd + "\n" });
+    } catch (e) {
+      console.error(e);
+    }
+    setPickerBranch(null);
+  }
+
+  const showPicker =
+    pickerBranch !== null && pickerBranch === activeBranch && commands.length > 0;
 
   if (openBranches.length === 0) {
     return (
@@ -54,6 +77,13 @@ export function MainArea({ activeBranch, openBranches, onSelectBranch }: Props) 
             active={activeBranch === branch}
           />
         ))}
+        {showPicker && (
+          <CommandPicker
+            commands={commands}
+            onPick={handlePick}
+            onClose={() => setPickerBranch(null)}
+          />
+        )}
       </div>
     </div>
   );

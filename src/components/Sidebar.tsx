@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { FreqCommand } from "./CommandPicker";
 
 interface BranchEntry {
   name: string;
@@ -55,7 +56,10 @@ function BranchItem({
         <button
           className="btn-icon"
           title="Set startup command"
-          onClick={(e) => { e.stopPropagation(); setEditing((v) => !v); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditing((v) => !v);
+          }}
         >
           ⚙
         </button>
@@ -90,6 +94,132 @@ function BranchItem({
             </button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function CommandsSection() {
+  const [commands, setCommands] = useState<FreqCommand[]>([]);
+  const [expanded, setExpanded] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [label, setLabel] = useState("");
+  const [cmdStr, setCmdStr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    invoke<FreqCommand[]>("get_commands").then(setCommands).catch(console.error);
+  }, []);
+
+  async function handleAdd() {
+    const l = label.trim();
+    const c = cmdStr.trim();
+    if (!l || !c) return;
+    setSaving(true);
+    try {
+      const created = await invoke<FreqCommand>("save_command", { label: l, cmd: c });
+      setCommands((prev) => [...prev, created]);
+      setLabel("");
+      setCmdStr("");
+      setAdding(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    await invoke("delete_command", { id });
+    setCommands((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  return (
+    <div className="commands-section">
+      <div className="commands-header" onClick={() => setExpanded((v) => !v)}>
+        <span>
+          Commands{commands.length > 0 ? ` (${commands.length})` : ""}
+        </span>
+        <div className="commands-header-actions" onClick={(e) => e.stopPropagation()}>
+          {expanded && (
+            <button
+              className="btn-icon"
+              style={{ opacity: 1, fontSize: "14px" }}
+              title="Add command"
+              onClick={() => setAdding((v) => !v)}
+            >
+              +
+            </button>
+          )}
+          <span className="commands-chevron">{expanded ? "▾" : "▸"}</span>
+        </div>
+      </div>
+
+      {expanded && (
+        <>
+          {adding && (
+            <div className="cmd-add-form">
+              <input
+                type="text"
+                placeholder="label (e.g. Run tests)"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                disabled={saving}
+              />
+              <input
+                type="text"
+                placeholder="command (e.g. cargo test)"
+                value={cmdStr}
+                onChange={(e) => setCmdStr(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAdd();
+                  if (e.key === "Escape") {
+                    setAdding(false);
+                    setLabel("");
+                    setCmdStr("");
+                  }
+                }}
+                disabled={saving}
+              />
+              <div className="form-actions">
+                <button className="btn btn-primary" onClick={handleAdd} disabled={saving}>
+                  {saving ? "…" : "Add"}
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setAdding(false);
+                    setLabel("");
+                    setCmdStr("");
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {commands.length === 0 && !adding && (
+            <div className="empty-state" style={{ fontSize: "11px", padding: "8px 14px" }}>
+              No commands yet
+            </div>
+          )}
+
+          {commands.map((c) => (
+            <div key={c.id} className="cmd-item">
+              <div className="cmd-item-info">
+                <div className="cmd-item-label">{c.label}</div>
+                <code className="cmd-item-cmd">{c.cmd}</code>
+              </div>
+              <button
+                className="btn-icon"
+                style={{ opacity: 1 }}
+                title="Delete"
+                onClick={() => handleDelete(c.id)}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </>
       )}
     </div>
   );
@@ -131,7 +261,7 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
 
   function handleStartupSaved(name: string, cmd: string) {
     setBranches((prev) =>
-      prev.map((b) => b.name === name ? { ...b, startupCommand: cmd || undefined } : b)
+      prev.map((b) => (b.name === name ? { ...b, startupCommand: cmd || undefined } : b))
     );
   }
 
@@ -166,6 +296,8 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
         )}
       </div>
 
+      <CommandsSection />
+
       {error && <div className="error-banner">{error}</div>}
 
       <div className="sidebar-footer">
@@ -178,7 +310,11 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCreate();
-                if (e.key === "Escape") { setCreating(false); setNewName(""); setError(null); }
+                if (e.key === "Escape") {
+                  setCreating(false);
+                  setNewName("");
+                  setError(null);
+                }
               }}
               autoFocus
               disabled={loading}
@@ -189,7 +325,11 @@ export function Sidebar({ activeBranch, onSelectBranch, onBranchesChange }: Prop
               </button>
               <button
                 className="btn btn-ghost"
-                onClick={() => { setCreating(false); setNewName(""); setError(null); }}
+                onClick={() => {
+                  setCreating(false);
+                  setNewName("");
+                  setError(null);
+                }}
                 disabled={loading}
               >
                 Cancel
