@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct FreqCommand {
     pub id: String,
+    #[serde(default)]
+    pub name: String,
     pub label: String,
     pub cmd: String,
     pub created_at: String,
@@ -47,11 +49,12 @@ fn save(commands: &[FreqCommand]) -> Result<(), String> {
     Ok(())
 }
 
-pub fn add(label: String, cmd: String) -> Result<FreqCommand, String> {
+pub fn add(name: String, label: String, cmd: String) -> Result<FreqCommand, String> {
     let mut commands = load()?;
     let id = millis_id();
     let entry = FreqCommand {
         id: id.clone(),
+        name,
         label,
         cmd,
         created_at: id,

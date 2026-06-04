@@ -21,6 +21,7 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
   const [mode, setMode] = useState<Mode>("pick");
   const [commands, setCommands] = useState<FreqCommand[]>([]);
   const [customCmd, setCustomCmd] = useState("");
+  const [customName, setCustomName] = useState("");
   const [autostart, setAutostart] = useState(true);
   const [loading, setLoading] = useState(false);
 
@@ -47,10 +48,11 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
 
   function handleCustomSubmit() {
     const cmd = customCmd.trim();
+    const name = customName.trim();
     if (!cmd) {
-      createTab(null, "Shell");
+      createTab(null, name || "Shell");
     } else {
-      createTab(cmd, cmd);
+      createTab(cmd, name || cmd);
     }
   }
 
@@ -126,26 +128,34 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
             </p>
             <input
               type="text"
-              placeholder="e.g. claude, npm run dev, lazygit"
+              placeholder="name (e.g. Dev Server)"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") onClose();
+              }}
+              autoFocus
+              disabled={loading}
+            />
+            <input
+              type="text"
+              placeholder="command (e.g. claude, npm run dev, lazygit)"
               value={customCmd}
               onChange={(e) => setCustomCmd(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCustomSubmit();
                 if (e.key === "Escape") onClose();
               }}
-              autoFocus
               disabled={loading}
             />
-            {customCmd.trim() && (
-              <label className="modal-autostart">
-                <input
-                  type="checkbox"
-                  checked={autostart}
-                  onChange={(e) => setAutostart(e.target.checked)}
-                />
-                Auto-start on open
-              </label>
-            )}
+            <label className="modal-autostart">
+              <input
+                type="checkbox"
+                checked={autostart}
+                onChange={(e) => setAutostart(e.target.checked)}
+              />
+              Auto-start on open
+            </label>
             <div className="form-actions" style={{ marginTop: "8px" }}>
               <button
                 className="btn btn-primary"
