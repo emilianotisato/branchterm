@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NewTabModal, TabEntry } from "./NewTabModal";
 import { FreqCommand } from "./CommandPicker";
 import { TermState } from "../types";
@@ -99,7 +98,7 @@ function BranchSection({
   onDeleteBranch,
   onMergeBranch,
 }: {
-  label: string;
+  label: React.ReactNode;
   tabs: TabEntry[];
   activeTabId: string | null;
   termStates: Record<string, TermState>;
@@ -122,7 +121,7 @@ function BranchSection({
       <div className="branch-section-header">
         <span
           className="branch-section-name"
-          title={label}
+          title={typeof label === "string" ? label : undefined}
           onContextMenu={(e) => {
             if (ctxItems.length === 0) return;
             e.preventDefault();
@@ -312,9 +311,6 @@ export function Sidebar({
     invoke<AppState>("get_state").then((s) => {
       setAppState(s);
       onStateLoaded(s);
-      const name = s.projectPath.split("/").pop() || s.projectPath;
-      document.title = name;
-      getCurrentWindow().setTitle(name).catch((e) => console.error("setTitle failed:", e));
     });
     const refreshBranch = () =>
       invoke<string>("get_current_branch").then(setCurrentBranch).catch(() => {});
@@ -409,7 +405,7 @@ export function Sidebar({
     <div className="sidebar">
       <div className="branches-list">
         <BranchSection
-          label={`⌂ ${currentBranch}`}
+          label={<>⌂ {currentBranch} <span style={{ color: "var(--accent)", fontWeight: 400, opacity: 0.75 }}>· {appState.projectPath.split("/").pop() || appState.projectPath}</span></>}
           tabs={appState.mainTabs}
           activeTabId={activeTabId}
           termStates={termStates}
