@@ -118,16 +118,17 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
 
   useEffect(() => {
     if (active) {
-      setTimeout(() => {
-        fitRef.current?.fit();
-        termRef.current?.focus();
-      }, 50);
-      // second fit after TUI has time to redraw; fixes broken layouts on tab switch
-      setTimeout(() => {
-        fitRef.current?.fit();
-      }, 150);
+      const sendResize = () => {
+        const fit = fitRef.current;
+        const term = termRef.current;
+        if (!fit || !term) return;
+        fit.fit();
+        invoke("pty_resize", { tabId, cols: term.cols, rows: term.rows }).catch(console.error);
+      };
+      setTimeout(() => { sendResize(); termRef.current?.focus(); }, 50);
+      setTimeout(sendResize, 150);
     }
-  }, [active]);
+  }, [active, tabId]);
 
   return (
     <div
