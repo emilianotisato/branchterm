@@ -9,16 +9,16 @@ interface Props {
   tabId: string;
   active: boolean;
   onExit: () => void;
-  onPrompt: () => void;
+  onExitCode: (code: number) => void;
 }
 
-export function Terminal({ tabId, active, onExit, onPrompt }: Props) {
+export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const unlistenExitRef = useRef<UnlistenFn | null>(null);
-  const unlistenShellRef = useRef<UnlistenFn | null>(null);
+  const unlistenExitCodeRef = useRef<UnlistenFn | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -65,21 +65,17 @@ export function Terminal({ tabId, active, onExit, onPrompt }: Props) {
     listen<string>(`pty-output-${tabId}`, (event) => {
       const bytes = Uint8Array.from(atob(event.payload), (c) => c.charCodeAt(0));
       term.write(bytes);
-    }).then((unlisten) => {
-      unlistenRef.current = unlisten;
-    });
+    }).then((ul) => { unlistenRef.current = ul; });
 
+    // PTY process died (shell itself exited)
     listen<boolean>(`pty-exit-${tabId}`, () => {
       onExit();
-    }).then((unlisten) => {
-      unlistenExitRef.current = unlisten;
-    });
+    }).then((ul) => { unlistenExitRef.current = ul; });
 
-    listen<string>(`pty-shell-${tabId}`, (event) => {
-      if (event.payload === "prompt") onPrompt();
-    }).then((unlisten) => {
-      unlistenShellRef.current = unlisten;
-    });
+    // Startup command exited — inline wrapper emits branchterm;ec=N OSC sequence
+    listen<number>(`pty-exit-code-${tabId}`, (event) => {
+      onExitCode(event.payload);
+    }).then((ul) => { unlistenExitCodeRef.current = ul; });
 
     term.onData((data) => {
       invoke("pty_input", { tabId, data }).catch(console.error);
@@ -99,7 +95,7 @@ export function Terminal({ tabId, active, onExit, onPrompt }: Props) {
       ro.disconnect();
       unlistenRef.current?.();
       unlistenExitRef.current?.();
-      unlistenShellRef.current?.();
+      unlistenExitCodeRef.current?.();
       term.dispose();
     };
   }, [tabId]);

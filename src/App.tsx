@@ -64,11 +64,17 @@ export default function App() {
     void branch;
   }
 
-  function handleTermEvent(tabId: string, event: "exit" | "prompt") {
+  function handleTermEvent(tabId: string, event: "exit" | { exitCode: number }) {
     setTermStates((prev) => {
       const cur = prev[tabId] ?? "shell";
       if (event === "exit") return { ...prev, [tabId]: "crashed" };
-      if (event === "prompt" && cur === "running") return { ...prev, [tabId]: "done" };
+      if (typeof event === "object") {
+        // Update for any "active" state — allows ongoing tracking of manual commands.
+        // Skip "shell" (no command ever), "idle" (not started yet), "crashed" (PTY dead).
+        if (cur === "running" || cur === "done" || cur === "failed") {
+          return { ...prev, [tabId]: event.exitCode === 0 ? "done" : "failed" };
+        }
+      }
       return prev;
     });
   }
@@ -92,7 +98,7 @@ export default function App() {
         activeTabId={activeTabId}
         allTabs={allTabs}
         onExit={(tabId) => handleTermEvent(tabId, "exit")}
-        onPrompt={(tabId) => handleTermEvent(tabId, "prompt")}
+        onExitCode={(tabId, code) => handleTermEvent(tabId, { exitCode: code })}
       />
       <div className={`right-pane ${scratchpadOpen ? "open" : ""}`}>
         <button

@@ -1,1 +1,1 @@
-export type TermState = "shell" | "idle" | "running" | "done" | "crashed";
+export type TermState = "shell" | "idle" | "running" | "done" | "failed" | "crashed";

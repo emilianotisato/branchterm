@@ -127,7 +127,8 @@ html, body, #root {
 .tab-dot-idle    { color: #555; }
 .tab-dot-running { color: var(--success); }
 .tab-dot-done    { color: #444; }
-.tab-dot-crashed { color: var(--danger); }
+.tab-dot-failed  { color: var(--danger); }
+.tab-dot-crashed { color: var(--danger); opacity: 0.6; }
 
 .tab-row-run {
   opacity: 0;

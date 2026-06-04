@@ -268,6 +268,8 @@ pub async fn run_tab_command(
             .and_then(|t| t.startup_command.clone())
             .ok_or_else(|| format!("No startup command for tab '{tab_id}'"))?
     };
+    // Open the gate before writing so PROMPT_COMMAND exit-code events get through
+    pty::set_command_started(&tab_id, &pty_map);
     pty::write_input(&tab_id, &format!("{cmd}\n"), &pty_map)
 }
 

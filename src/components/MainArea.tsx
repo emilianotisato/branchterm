@@ -11,10 +11,10 @@ interface Props {
   activeTabId: string | null;
   allTabs: TabEntry[];
   onExit: (tabId: string) => void;
-  onPrompt: (tabId: string) => void;
+  onExitCode: (tabId: string, code: number) => void;
 }
 
-export function MainArea({ activeTabId, allTabs, onExit, onPrompt }: Props) {
+export function MainArea({ activeTabId, allTabs, onExit, onExitCode }: Props) {
 
   if (allTabs.length === 0) {
     return (
@@ -33,7 +33,7 @@ export function MainArea({ activeTabId, allTabs, onExit, onPrompt }: Props) {
             tabId={tab.id}
             active={activeTabId === tab.id}
             onExit={() => onExit(tab.id)}
-            onPrompt={() => onPrompt(tab.id)}
+            onExitCode={(code) => onExitCode(tab.id, code)}
           />
         ))}
       </div>
