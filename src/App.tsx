@@ -245,7 +245,15 @@ export default function App() {
         >
           {scratchpadOpen ? "›" : "‹"}
         </button>
-        {scratchpadOpen && <Scratchpad focusRequest={scratchpadFocusCounter} />}
+        {scratchpadOpen && (
+          <Scratchpad
+            focusRequest={scratchpadFocusCounter}
+            onCollapse={() => {
+              setScratchpadOpen(false);
+              window.dispatchEvent(new CustomEvent("branchterm:focus-terminal"));
+            }}
+          />
+        )}
       </div>
 
       {commandPaletteOpen && (

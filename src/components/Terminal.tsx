@@ -116,6 +116,14 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
     };
   }, [tabId]);
 
+  // Refocus terminal when scratchpad collapses via Escape.
+  useEffect(() => {
+    if (!active) return;
+    function handler() { termRef.current?.focus(); }
+    window.addEventListener("branchterm:focus-terminal", handler);
+    return () => window.removeEventListener("branchterm:focus-terminal", handler);
+  }, [active]);
+
   // Window capture listener intercepts Shift+Enter before xterm.js sees it.
   // Sends kitty keyboard protocol sequence so Claude Code can insert newlines.
   useEffect(() => {

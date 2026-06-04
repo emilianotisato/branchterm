@@ -3,9 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 
 interface Props {
   focusRequest?: number;
+  onCollapse?: () => void;
 }
 
-export function Scratchpad({ focusRequest }: Props) {
+export function Scratchpad({ focusRequest, onCollapse }: Props) {
   const [content, setContent] = useState("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -39,6 +40,13 @@ export function Scratchpad({ focusRequest }: Props) {
         placeholder="Project notes (markdown)..."
         value={content}
         onChange={handleChange}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            if (timerRef.current) clearTimeout(timerRef.current);
+            invoke("write_scratchpad", { content }).catch(console.error);
+            onCollapse?.();
+          }
+        }}
       />
     </div>
   );
