@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FreqCommand } from "./CommandPicker";
 
@@ -15,221 +15,251 @@ interface Props {
   onClose: () => void;
 }
 
-type Mode = "pick" | "custom";
+type Step =
+  | { type: "select" }
+  | { type: "custom-name" }
+  | { type: "custom-cmd" }
+  | { type: "autostart"; command: string | null; title: string };
+
+type ListItem =
+  | { kind: "custom" }
+  | { kind: "global"; id: string; label: string; cmd: string };
 
 export function NewTabModal({ branch, onCreated, onClose }: Props) {
-  const [mode, setMode] = useState<Mode>("pick");
   const [commands, setCommands] = useState<FreqCommand[]>([]);
+  const [step, setStep] = useState<Step>({ type: "select" });
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [customCmd, setCustomCmd] = useState("");
   const [customName, setCustomName] = useState("");
+  const [customCmd, setCustomCmd] = useState("");
   const [autostart, setAutostart] = useState(true);
   const [loading, setLoading] = useState(false);
-  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const cmdInputRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const items = useMemo<ListItem[]>(() => [
+    { kind: "custom" },
+    ...commands.map(c => ({ kind: "global" as const, id: c.id, label: c.label, cmd: c.cmd })),
+  ], [commands]);
 
   useEffect(() => {
     invoke<FreqCommand[]>("get_commands").then(setCommands).catch(console.error);
   }, []);
 
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [commands, mode]);
+    if (step.type === "custom-name") setTimeout(() => nameInputRef.current?.focus(), 0);
+    else if (step.type === "custom-cmd") setTimeout(() => cmdInputRef.current?.focus(), 0);
+  }, [step.type]);
 
   useEffect(() => {
     itemRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
-  // focus name input when switching to custom mode
-  useEffect(() => {
-    if (mode === "custom") {
-      setTimeout(() => nameInputRef.current?.focus(), 0);
-    }
-  }, [mode]);
+  // ref snapshot so the window listener doesn't need to re-register on state changes
+  const snap = useRef({ step, items, selectedIndex, autostart, loading });
+  snap.current = { step, items, selectedIndex, autostart, loading };
 
-  async function createTab(command: string | null, title: string) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const branchRef = useRef(branch);
+  branchRef.current = branch;
+
+  const onCreatedRef = useRef(onCreated);
+  onCreatedRef.current = onCreated;
+
+  function goToAutostart(command: string | null, title: string) {
+    setStep({ type: "autostart", command, title });
+  }
+
+  function advanceCustomName() {
+    if (!customName.trim()) return;
+    setStep({ type: "custom-cmd" });
+  }
+
+  function advanceCustomCmd() {
+    const cmd = customCmd.trim();
+    const name = customName.trim();
+    goToAutostart(cmd || null, name);
+  }
+
+  async function doCreate(command: string | null, title: string, doAutostart: boolean) {
+    if (snap.current.loading) return;
     setLoading(true);
     try {
       const tab = await invoke<TabEntry>("new_tab", {
-        branch,
+        branch: branchRef.current,
         command: command ?? undefined,
         title,
-        autostart: command ? autostart : true,
+        autostart: command ? doAutostart : true,
       });
-      onCreated(tab);
+      onCreatedRef.current(tab);
     } catch (e) {
       console.error(e);
-    } finally {
       setLoading(false);
     }
   }
 
-  function handleCustomSubmit() {
-    const cmd = customCmd.trim();
-    const name = customName.trim();
-    if (!cmd) {
-      createTab(null, name || "Shell");
-    } else {
-      createTab(cmd, name || cmd);
-    }
-  }
-
+  // stable window-level capture listener (xterm eats events otherwise)
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      // don't intercept modifier combos (Ctrl+Shift+T etc.)
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const s = snap.current;
 
-      if (mode === "pick") {
+      if (s.step.type === "select") {
         if (e.key === "ArrowDown") {
           e.preventDefault(); e.stopPropagation();
-          setSelectedIndex((i) => Math.min(i + 1, commands.length - 1));
+          setSelectedIndex(i => Math.min(i + 1, s.items.length - 1));
         } else if (e.key === "ArrowUp") {
           e.preventDefault(); e.stopPropagation();
-          setSelectedIndex((i) => Math.max(i - 1, 0));
+          setSelectedIndex(i => Math.max(i - 1, 0));
         } else if (e.key === "Enter") {
           e.preventDefault(); e.stopPropagation();
-          const c = commands[selectedIndex];
-          if (c && !loading) createTab(c.cmd, c.label);
-        } else if (e.key === "Tab") {
-          e.preventDefault(); e.stopPropagation();
-          setMode("custom");
+          const item = s.items[s.selectedIndex];
+          if (!item) return;
+          if (item.kind === "custom") {
+            setStep({ type: "custom-name" });
+          } else {
+            setStep({ type: "autostart", command: item.cmd, title: item.label });
+          }
         } else if (e.key === "Escape") {
           e.preventDefault(); e.stopPropagation();
-          onClose();
+          onCloseRef.current();
         }
-      } else if (mode === "custom") {
-        if (e.key === "Escape") {
+      } else if (s.step.type === "autostart") {
+        if (e.key === " ") {
           e.preventDefault(); e.stopPropagation();
-          onClose();
+          setAutostart(v => !v);
+        } else if (e.key === "Enter" && !s.loading) {
+          e.preventDefault(); e.stopPropagation();
+          doCreate(s.step.command, s.step.title, s.autostart);
+        } else if (e.key === "Escape") {
+          e.preventDefault(); e.stopPropagation();
+          onCloseRef.current();
         }
-        // Tab/Enter/Shift+Tab handled by input onKeyDown handlers
       }
     }
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [mode, commands, selectedIndex, loading, onClose]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const branchLabel = branch === "__main__" ? "main" : branch;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <span>New Terminal — {branch === "__main__" ? "main" : branch}</span>
-          <button className="btn-icon" style={{ opacity: 1 }} onClick={onClose}>
-            ✕
-          </button>
+          <span>New Terminal — {branchLabel}</span>
+          <button className="btn-icon" style={{ opacity: 1 }} onClick={onClose}>✕</button>
         </div>
 
-        <div className="modal-tabs">
-          <button
-            className={`modal-tab ${mode === "pick" ? "active" : ""}`}
-            onClick={() => setMode("pick")}
-            tabIndex={-1}
-          >
-            Global Commands
-          </button>
-          <button
-            className={`modal-tab ${mode === "custom" ? "active" : ""}`}
-            onClick={() => setMode("custom")}
-            tabIndex={-1}
-          >
-            Custom / Shell
-          </button>
-        </div>
-
-        {mode === "pick" && (
+        {step.type === "select" && (
           <div className="modal-body">
-            {commands.length === 0 ? (
-              <div className="modal-empty">
-                No global commands saved yet. Add some in the Commands section.
-              </div>
-            ) : (
-              <div className="modal-cmd-list">
-                {commands.map((c, i) => (
-                  <div
-                    key={c.id}
-                    ref={(el) => { itemRefs.current[i] = el; }}
-                    className={`modal-cmd-item${selectedIndex === i ? " selected" : ""}`}
-                    onClick={() => !loading && createTab(c.cmd, c.label)}
-                    onMouseEnter={() => setSelectedIndex(i)}
-                  >
-                    <span className="modal-cmd-label">{c.label}</span>
-                    <code className="modal-cmd-str">{c.cmd}</code>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="modal-footer">
-              <label className="modal-autostart">
-                <input
-                  type="checkbox"
-                  checked={autostart}
-                  onChange={(e) => setAutostart(e.target.checked)}
-                  tabIndex={-1}
-                />
-                Auto-start on open
-              </label>
-              <button
-                className="btn btn-ghost"
-                onClick={() => createTab(null, "Shell")}
-                disabled={loading}
-                tabIndex={-1}
-              >
-                Open plain shell instead
-              </button>
+            <div className="modal-cmd-list">
+              {items.map((item, i) => (
+                <div
+                  key={item.kind === "custom" ? "__custom__" : item.id}
+                  ref={el => { itemRefs.current[i] = el; }}
+                  className={`modal-cmd-item${selectedIndex === i ? " selected" : ""}`}
+                  onClick={() => {
+                    if (item.kind === "custom") setStep({ type: "custom-name" });
+                    else setStep({ type: "autostart", command: item.cmd, title: item.label });
+                  }}
+                  onMouseEnter={() => setSelectedIndex(i)}
+                >
+                  {item.kind === "custom" ? (
+                    <>
+                      <span className="modal-cmd-label">Custom / Shell</span>
+                      <span className="modal-cmd-str">enter name + command or blank for shell</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="modal-cmd-label">{item.label}</span>
+                      <code className="modal-cmd-str">{item.cmd}</code>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
+            <p className="modal-hint">↑↓ navigate · Enter pick · Esc close</p>
           </div>
         )}
 
-        {mode === "custom" && (
+        {step.type === "custom-name" && (
           <div className="modal-body">
-            <p className="modal-hint">
-              Enter a command to run automatically, or leave blank for a plain shell.
-            </p>
+            <p className="modal-hint">Tab name</p>
             <input
               ref={nameInputRef}
               type="text"
-              placeholder="name (e.g. Dev Server)"
+              placeholder="e.g. Dev Server"
               value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Tab" && e.shiftKey) {
+              onChange={e => setCustomName(e.target.value)}
+              onKeyDown={e => {
+                if ((e.key === "Tab" || e.key === "Enter") && !e.shiftKey) {
                   e.preventDefault();
-                  setMode("pick");
+                  advanceCustomName();
+                } else if (e.key === "Escape") {
+                  onClose();
                 }
               }}
               disabled={loading}
             />
+            <p className="modal-hint">Tab / Enter → command · Esc close</p>
+          </div>
+        )}
+
+        {step.type === "custom-cmd" && (
+          <div className="modal-body">
+            <p className="modal-hint">Command (leave blank for plain shell)</p>
             <input
+              ref={cmdInputRef}
               type="text"
-              placeholder="command (e.g. claude, npm run dev, lazygit)"
+              placeholder="e.g. claude, npm run dev, lazygit"
               value={customCmd}
-              onChange={(e) => setCustomCmd(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCustomSubmit();
+              onChange={e => setCustomCmd(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  advanceCustomCmd();
+                } else if (e.key === "Tab" && e.shiftKey) {
+                  e.preventDefault();
+                  setStep({ type: "custom-name" });
+                } else if (e.key === "Escape") {
+                  onClose();
+                }
               }}
               disabled={loading}
             />
-            <label className="modal-autostart">
+            <p className="modal-hint">Enter → next · Shift+Tab ← back · Esc close</p>
+          </div>
+        )}
+
+        {step.type === "autostart" && (
+          <div className="modal-body">
+            <p className="modal-hint" style={{ marginBottom: 4 }}>
+              Opening: <strong>{step.title}</strong>
+              {step.command && <code style={{ marginLeft: 6, fontSize: 11 }}>{step.command}</code>}
+            </p>
+            <label className="modal-autostart" style={{ fontSize: 13, gap: 8 }}>
               <input
                 type="checkbox"
                 checked={autostart}
-                onChange={(e) => setAutostart(e.target.checked)}
+                onChange={e => setAutostart(e.target.checked)}
+                tabIndex={-1}
               />
               Auto-start on open
             </label>
-            <div className="form-actions" style={{ marginTop: "8px" }}>
-              <button
-                className="btn btn-primary"
-                onClick={handleCustomSubmit}
-                disabled={loading}
-              >
-                {loading ? "Opening…" : customCmd.trim() ? "Run & Open" : "Open Shell"}
-              </button>
-              <button className="btn btn-ghost" onClick={onClose}>
-                Cancel
-              </button>
-            </div>
+            <p className="modal-hint" style={{ marginTop: 4 }}>Space toggle · Enter open · Esc close</p>
+            <button
+              className="btn btn-primary"
+              style={{ marginTop: 4 }}
+              onClick={() => doCreate(step.command, step.title, autostart)}
+              disabled={loading}
+            >
+              {loading ? "Opening…" : "Open Terminal"}
+            </button>
           </div>
         )}
       </div>
