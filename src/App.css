@@ -77,18 +77,80 @@ html, body, #root {
   gap: 4px;
 }
 
-.branch-delete-btn {
-  opacity: 0;
-  font-size: 10px;
-  transition: opacity 0.1s, color 0.1s;
+/* Context menu */
+.context-menu {
+  position: fixed;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-width: 160px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  padding: 4px 0;
 }
 
-.branch-section-header:hover .branch-delete-btn {
-  opacity: 1;
+.context-menu-item {
+  padding: 7px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text);
+  white-space: nowrap;
 }
 
-.branch-delete-btn:hover {
-  color: var(--danger) !important;
+.context-menu-item:hover {
+  background: var(--bg-sidebar);
+}
+
+.context-menu-item.danger {
+  color: var(--danger);
+}
+
+/* Merge modal specifics */
+.merge-error-msg {
+  font-size: 12px;
+  color: var(--danger);
+  padding: 8px 0;
+}
+
+.merge-success-msg {
+  font-size: 13px;
+  color: var(--success);
+  padding: 8px 0;
+}
+
+.merge-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.merge-option-btn {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 7px 10px;
+}
+
+.merge-git-output {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 8px;
+  font-size: 11px;
+  font-family: 'Consolas', monospace;
+  color: var(--text-dim);
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin-top: 8px;
+}
+
+.modal-cmd-item.selected {
+  background: var(--bg-sidebar);
+  border-color: var(--accent);
 }
 
 .branch-section-name {

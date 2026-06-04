@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { NewTabModal, TabEntry } from "./NewTabModal";
 import { FreqCommand } from "./CommandPicker";
 import { TermState } from "../types";
+import { ContextMenu } from "./ContextMenu";
+import { MergeModal } from "./MergeModal";
 
 interface BranchEntry {
   name: string;
@@ -94,6 +96,7 @@ function BranchSection({
   onCloseTab,
   onRunTab,
   onDeleteBranch,
+  onMergeBranch,
 }: {
   label: string;
   tabs: TabEntry[];
@@ -104,25 +107,29 @@ function BranchSection({
   onCloseTab: (tabId: string) => void;
   onRunTab: (tabId: string) => void;
   onDeleteBranch?: () => void;
+  onMergeBranch?: () => void;
 }) {
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const ctxItems = [
+    ...(onMergeBranch ? [{ label: "Merge into…", onClick: onMergeBranch }] : []),
+    ...(onDeleteBranch ? [{ label: "Delete workspace", danger: true, onClick: onDeleteBranch }] : []),
+  ];
+
   return (
     <div className="branch-section">
       <div className="branch-section-header">
-        <span className="branch-section-name" title={label}>
+        <span
+          className="branch-section-name"
+          title={label}
+          onContextMenu={(e) => {
+            if (ctxItems.length === 0) return;
+            e.preventDefault();
+            setCtxMenu({ x: e.clientX, y: e.clientY });
+          }}
+        >
           {label}
         </span>
-        {onDeleteBranch && (
-          <button
-            className="btn-icon branch-delete-btn"
-            title="Delete branch"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeleteBranch();
-            }}
-          >
-            ✕
-          </button>
-        )}
         <button
           className="btn-icon"
           style={{ opacity: 1, fontSize: "14px" }}
@@ -135,6 +142,14 @@ function BranchSection({
           +
         </button>
       </div>
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={ctxItems}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
       {tabs.map((tab) => (
         <TabRow
           key={tab.id}
@@ -289,6 +304,7 @@ export function Sidebar({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modalBranch, setModalBranch] = useState<string | null>(null);
+  const [mergeBranch, setMergeBranch] = useState<{ name: string; parentBranch: string } | null>(null);
 
   useEffect(() => {
     invoke<AppState>("get_state").then((s) => {
@@ -410,6 +426,7 @@ export function Sidebar({
             onCloseTab={(tabId) => handleCloseTab(b.name, tabId)}
             onRunTab={handleRunTab}
             onDeleteBranch={() => handleDeleteBranch(b.name, b.tabs.map((t) => t.id))}
+            onMergeBranch={() => setMergeBranch({ name: b.name, parentBranch: b.parentBranch })}
           />
         ))}
 
@@ -470,6 +487,20 @@ export function Sidebar({
           branch={modalBranch}
           onCreated={(tab) => handleTabCreated(modalBranch, tab)}
           onClose={() => setModalBranch(null)}
+        />
+      )}
+
+      {mergeBranch && (
+        <MergeModal
+          branch={mergeBranch.name}
+          parentBranch={mergeBranch.parentBranch}
+          onClose={() => setMergeBranch(null)}
+          onWorkspaceDeleted={(branchName) => {
+            const tabIds = appState?.branches.find((b) => b.name === branchName)?.tabs.map((t) => t.id) ?? [];
+            setAppState((prev) => prev ? { ...prev, branches: prev.branches.filter((b) => b.name !== branchName) } : prev);
+            onBranchDeleted(branchName, tabIds);
+            setMergeBranch(null);
+          }}
         />
       )}
     </div>

@@ -4,6 +4,7 @@ use std::time::SystemTime;
 
 use crate::commands_store::{self, FreqCommand};
 use crate::context::AppContext;
+use crate::merge::{self, MergeOutcome};
 use crate::pty::{self, PtyMap};
 use crate::state::{self, AppState, BranchEntry, TabEntry};
 use crate::workspace;
@@ -286,6 +287,67 @@ pub async fn save_command(label: String, cmd: String) -> Result<FreqCommand, Str
 #[tauri::command]
 pub async fn delete_command(id: String) -> Result<(), String> {
     commands_store::remove(&id)
+}
+
+#[tauri::command]
+pub async fn get_project_branches(ctx: State<'_, AppContext>) -> Result<Vec<String>, String> {
+    merge::get_branches(&ctx.project_path)
+}
+
+#[tauri::command]
+pub async fn merge_branch(
+    branch: String,
+    target_branch: String,
+    checkout_first: bool,
+    ignore_drift: bool,
+    ctx: State<'_, AppContext>,
+) -> Result<MergeOutcome, String> {
+    let workspace_path = {
+        let s = ctx.state.lock().unwrap();
+        let entry = s
+            .branches
+            .iter()
+            .find(|b| b.name == branch)
+            .ok_or_else(|| format!("Branch '{branch}' not found"))?;
+        std::path::PathBuf::from(&entry.workspace_path)
+    };
+
+    merge::run_merge(
+        &ctx.project_path,
+        &workspace_path,
+        &branch,
+        &target_branch,
+        checkout_first,
+        ignore_drift,
+    )
+}
+
+fn scratchpad_path(slug: &str) -> std::path::PathBuf {
+    let data_dir = dirs::data_local_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".local/share"));
+    data_dir
+        .join("branchterm")
+        .join("scratchpads")
+        .join(format!("{slug}.md"))
+}
+
+#[tauri::command]
+pub async fn read_scratchpad(ctx: State<'_, AppContext>) -> Result<String, String> {
+    let path = scratchpad_path(&ctx.slug);
+    if !path.exists() {
+        return Ok(String::new());
+    }
+    std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read scratchpad: {e}"))
+}
+
+#[tauri::command]
+pub async fn write_scratchpad(content: String, ctx: State<'_, AppContext>) -> Result<(), String> {
+    let path = scratchpad_path(&ctx.slug);
+    std::fs::create_dir_all(path.parent().unwrap())
+        .map_err(|e| format!("Failed to create scratchpad dir: {e}"))?;
+    std::fs::write(&path, &content)
+        .map_err(|e| format!("Failed to write scratchpad: {e}"))
 }
 
 fn iso8601_now() -> String {

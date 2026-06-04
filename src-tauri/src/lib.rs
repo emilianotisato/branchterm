@@ -4,6 +4,7 @@ mod boot;
 mod commands;
 mod commands_store;
 mod context;
+mod merge;
 mod pty;
 mod state;
 mod workspace;
@@ -46,6 +47,10 @@ pub fn run(project_path: PathBuf) {
             commands::get_commands,
             commands::save_command,
             commands::delete_command,
+            commands::read_scratchpad,
+            commands::write_scratchpad,
+            commands::get_project_branches,
+            commands::merge_branch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
