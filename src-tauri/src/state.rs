@@ -14,12 +14,16 @@ pub fn new_tab_id() -> String {
     format!("{ms}{n:04}")
 }
 
+fn default_true() -> bool { true }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TabEntry {
     pub id: String,
     pub title: String,
     pub startup_command: Option<String>,
+    #[serde(default = "default_true")]
+    pub autostart: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +74,7 @@ fn default_shell_tab() -> TabEntry {
         id: new_tab_id(),
         title: "Shell".to_string(),
         startup_command: None,
+        autostart: true,
     }
 }
 
@@ -90,6 +95,7 @@ fn migrate(raw: RawAppState) -> AppState {
                         id: new_tab_id(),
                         title: cmd.clone(),
                         startup_command: Some(cmd),
+                        autostart: true,
                     }]
                 } else {
                     vec![default_shell_tab()]
@@ -185,6 +191,7 @@ mod tests {
                 id: "t1".to_string(),
                 title: "Shell".to_string(),
                 startup_command: None,
+                autostart: true,
             }],
             branches: vec![BranchEntry {
                 name: "feature-x".to_string(),
@@ -195,6 +202,7 @@ mod tests {
                     id: "t2".to_string(),
                     title: "claude".to_string(),
                     startup_command: Some("claude".to_string()),
+                    autostart: false,
                 }],
             }],
         };

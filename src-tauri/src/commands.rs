@@ -43,6 +43,7 @@ pub async fn new_branch(name: String, ctx: State<'_, AppContext>) -> Result<Bran
         id: state::new_tab_id(),
         title: "Shell".to_string(),
         startup_command: None,
+        autostart: true,
     };
 
     let entry = BranchEntry {
@@ -73,7 +74,7 @@ pub async fn spawn_tab(
     ctx: State<'_, AppContext>,
     pty_map: State<'_, PtyMap>,
 ) -> Result<(), String> {
-    let (workspace_path, startup_command) = {
+    let (workspace_path, startup_command, autostart) = {
         let s = ctx.state.lock().unwrap();
         if branch == "__main__" {
             let tab = s
@@ -81,7 +82,7 @@ pub async fn spawn_tab(
                 .iter()
                 .find(|t| t.id == tab_id)
                 .ok_or_else(|| format!("Tab '{tab_id}' not found in main"))?;
-            (ctx.project_path.clone(), tab.startup_command.clone())
+            (ctx.project_path.clone(), tab.startup_command.clone(), tab.autostart)
         } else {
             let entry = s
                 .branches
@@ -96,11 +97,12 @@ pub async fn spawn_tab(
             (
                 std::path::PathBuf::from(&entry.workspace_path),
                 tab.startup_command.clone(),
+                tab.autostart,
             )
         }
     };
 
-    pty::spawn_pty(tab_id, &workspace_path, startup_command, app_handle, &pty_map)
+    pty::spawn_pty(tab_id, &workspace_path, startup_command, autostart, app_handle, &pty_map)
 }
 
 /// Create a new tab for a branch (or __main__), spawn its PTY, return the tab entry.
@@ -109,10 +111,12 @@ pub async fn new_tab(
     branch: String,
     command: Option<String>,
     title: Option<String>,
+    autostart: Option<bool>,
     app_handle: tauri::AppHandle,
     ctx: State<'_, AppContext>,
     pty_map: State<'_, PtyMap>,
 ) -> Result<TabEntry, String> {
+    let autostart = autostart.unwrap_or(true);
     let tab_title = title.unwrap_or_else(|| {
         command
             .as_deref()
@@ -125,6 +129,7 @@ pub async fn new_tab(
         id: state::new_tab_id(),
         title: tab_title,
         startup_command: command.clone(),
+        autostart,
     };
 
     let workspace_path = {
@@ -150,6 +155,7 @@ pub async fn new_tab(
         tab.id.clone(),
         &workspace_path,
         tab.startup_command.clone(),
+        tab.autostart,
         app_handle,
         &pty_map,
     )?;
@@ -244,6 +250,25 @@ pub async fn pty_resize(
     pty_map: State<'_, PtyMap>,
 ) -> Result<(), String> {
     pty::resize_pty(&tab_id, cols, rows, &pty_map)
+}
+
+/// Inject a tab's startup_command into its running PTY (manual "run" trigger).
+#[tauri::command]
+pub async fn run_tab_command(
+    tab_id: String,
+    ctx: State<'_, AppContext>,
+    pty_map: State<'_, PtyMap>,
+) -> Result<(), String> {
+    let cmd = {
+        let s = ctx.state.lock().unwrap();
+        s.main_tabs
+            .iter()
+            .chain(s.branches.iter().flat_map(|b| b.tabs.iter()))
+            .find(|t| t.id == tab_id)
+            .and_then(|t| t.startup_command.clone())
+            .ok_or_else(|| format!("No startup command for tab '{tab_id}'"))?
+    };
+    pty::write_input(&tab_id, &format!("{cmd}\n"), &pty_map)
 }
 
 #[tauri::command]

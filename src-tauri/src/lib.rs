@@ -42,6 +42,7 @@ pub fn run(project_path: PathBuf) {
             commands::close_tab,
             commands::pty_input,
             commands::pty_resize,
+            commands::run_tab_command,
             commands::get_commands,
             commands::save_command,
             commands::delete_command,

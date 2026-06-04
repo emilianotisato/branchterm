@@ -6,6 +6,7 @@ interface TabEntry {
   id: string;
   title: string;
   startupCommand?: string;
+  autostart: boolean;
 }
 
 interface Props {
@@ -20,6 +21,7 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
   const [mode, setMode] = useState<Mode>("pick");
   const [commands, setCommands] = useState<FreqCommand[]>([]);
   const [customCmd, setCustomCmd] = useState("");
+  const [autostart, setAutostart] = useState(true);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -33,6 +35,7 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
         branch,
         command: command ?? undefined,
         title,
+        autostart: command ? autostart : true,
       });
       onCreated(tab);
     } catch (e) {
@@ -97,6 +100,14 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
               </div>
             )}
             <div className="modal-footer">
+              <label className="modal-autostart">
+                <input
+                  type="checkbox"
+                  checked={autostart}
+                  onChange={(e) => setAutostart(e.target.checked)}
+                />
+                Auto-start on open
+              </label>
               <button
                 className="btn btn-ghost"
                 onClick={() => createTab(null, "Shell")}
@@ -125,6 +136,16 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
               autoFocus
               disabled={loading}
             />
+            {customCmd.trim() && (
+              <label className="modal-autostart">
+                <input
+                  type="checkbox"
+                  checked={autostart}
+                  onChange={(e) => setAutostart(e.target.checked)}
+                />
+                Auto-start on open
+              </label>
+            )}
             <div className="form-actions" style={{ marginTop: "8px" }}>
               <button
                 className="btn btn-primary"

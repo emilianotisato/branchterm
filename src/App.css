@@ -118,10 +118,24 @@ html, body, #root {
   color: var(--text);
 }
 
-.tab-row-dot {
-  font-size: 8px;
-  color: var(--accent);
+.tab-dot {
+  font-size: 7px;
   flex-shrink: 0;
+  margin-right: 1px;
+}
+
+.tab-dot-idle    { color: #555; }
+.tab-dot-running { color: var(--success); }
+.tab-dot-done    { color: #444; }
+.tab-dot-crashed { color: var(--danger); }
+
+.tab-row-run {
+  opacity: 0;
+  font-size: 9px;
+}
+
+.tab-row:hover .tab-row-run {
+  opacity: 1;
 }
 
 .tab-row-close {
@@ -392,6 +406,24 @@ html, body, #root {
   margin-top: auto;
   padding-top: 8px;
   border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-autostart {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.modal-autostart input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
 }
 
 /* Commands section in sidebar */

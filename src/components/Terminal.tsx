@@ -8,13 +8,17 @@ import "@xterm/xterm/css/xterm.css";
 interface Props {
   tabId: string;
   active: boolean;
+  onExit: () => void;
+  onPrompt: () => void;
 }
 
-export function Terminal({ tabId, active }: Props) {
+export function Terminal({ tabId, active, onExit, onPrompt }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
+  const unlistenExitRef = useRef<UnlistenFn | null>(null);
+  const unlistenShellRef = useRef<UnlistenFn | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -65,6 +69,18 @@ export function Terminal({ tabId, active }: Props) {
       unlistenRef.current = unlisten;
     });
 
+    listen<boolean>(`pty-exit-${tabId}`, () => {
+      onExit();
+    }).then((unlisten) => {
+      unlistenExitRef.current = unlisten;
+    });
+
+    listen<string>(`pty-shell-${tabId}`, (event) => {
+      if (event.payload === "prompt") onPrompt();
+    }).then((unlisten) => {
+      unlistenShellRef.current = unlisten;
+    });
+
     term.onData((data) => {
       invoke("pty_input", { tabId, data }).catch(console.error);
     });
@@ -82,6 +98,8 @@ export function Terminal({ tabId, active }: Props) {
     return () => {
       ro.disconnect();
       unlistenRef.current?.();
+      unlistenExitRef.current?.();
+      unlistenShellRef.current?.();
       term.dispose();
     };
   }, [tabId]);

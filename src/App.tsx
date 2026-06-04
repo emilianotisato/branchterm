@@ -3,12 +3,19 @@ import { invoke } from "@tauri-apps/api/core";
 import { Sidebar, AppState } from "./components/Sidebar";
 import { MainArea, TabEntry } from "./components/MainArea";
 import { Scratchpad } from "./components/Scratchpad";
+import { TermState } from "./types";
 import "./App.css";
 
 export default function App() {
   const [scratchpadOpen, setScratchpadOpen] = useState(false);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [allTabs, setAllTabs] = useState<TabEntry[]>([]);
+  const [termStates, setTermStates] = useState<Record<string, TermState>>({});
+
+  function computeInitialState(tab: TabEntry): TermState {
+    if (!tab.startupCommand) return "shell";
+    return tab.autostart ? "running" : "idle";
+  }
 
   function handleStateLoaded(state: AppState) {
     const tabs: TabEntry[] = [
@@ -17,7 +24,12 @@ export default function App() {
     ];
     setAllTabs(tabs);
 
-    // Spawn PTY for every tab
+    const initial: Record<string, TermState> = {};
+    for (const tab of tabs) {
+      initial[tab.id] = computeInitialState(tab);
+    }
+    setTermStates(initial);
+
     for (const tab of state.mainTabs) {
       invoke("spawn_tab", { branch: "__main__", tabId: tab.id }).catch(console.error);
     }
@@ -27,7 +39,6 @@ export default function App() {
       }
     }
 
-    // Activate the first main tab
     if (state.mainTabs.length > 0) {
       setActiveTabId(state.mainTabs[0].id);
     }
@@ -36,31 +47,52 @@ export default function App() {
   function handleTabCreated(branch: string, tab: TabEntry) {
     setAllTabs((prev) => (prev.find((t) => t.id === tab.id) ? prev : [...prev, tab]));
     setActiveTabId(tab.id);
-    // PTY is already spawned by new_tab command on the Rust side
+    setTermStates((prev) => ({ ...prev, [tab.id]: computeInitialState(tab) }));
     void branch;
   }
 
   function handleTabClosed(branch: string, tabId: string) {
     setAllTabs((prev) => prev.filter((t) => t.id !== tabId));
+    setTermStates((prev) => {
+      const next = { ...prev };
+      delete next[tabId];
+      return next;
+    });
     if (activeTabId === tabId) {
-      // Activate another tab in the same branch or any remaining tab
       setActiveTabId(allTabs.find((t) => t.id !== tabId)?.id ?? null);
     }
     void branch;
+  }
+
+  function handleTermEvent(tabId: string, event: "exit" | "prompt") {
+    setTermStates((prev) => {
+      const cur = prev[tabId] ?? "shell";
+      if (event === "exit") return { ...prev, [tabId]: "crashed" };
+      if (event === "prompt" && cur === "running") return { ...prev, [tabId]: "done" };
+      return prev;
+    });
+  }
+
+  function handleTabRun(tabId: string) {
+    setTermStates((prev) => ({ ...prev, [tabId]: "running" }));
   }
 
   return (
     <div className="app">
       <Sidebar
         activeTabId={activeTabId}
+        termStates={termStates}
         onSelectTab={setActiveTabId}
         onStateLoaded={handleStateLoaded}
         onTabCreated={handleTabCreated}
         onTabClosed={handleTabClosed}
+        onTabRun={handleTabRun}
       />
       <MainArea
         activeTabId={activeTabId}
         allTabs={allTabs}
+        onExit={(tabId) => handleTermEvent(tabId, "exit")}
+        onPrompt={(tabId) => handleTermEvent(tabId, "prompt")}
       />
       <div className={`right-pane ${scratchpadOpen ? "open" : ""}`}>
         <button

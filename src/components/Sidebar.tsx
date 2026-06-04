@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { NewTabModal, TabEntry } from "./NewTabModal";
 import { FreqCommand } from "./CommandPicker";
+import { TermState } from "../types";
 
 interface BranchEntry {
   name: string;
@@ -19,32 +20,53 @@ interface AppState {
 
 interface Props {
   activeTabId: string | null;
+  termStates: Record<string, TermState>;
   onSelectTab: (tabId: string) => void;
   onStateLoaded: (state: AppState) => void;
   onTabCreated: (branch: string, tab: TabEntry) => void;
   onTabClosed: (branch: string, tabId: string) => void;
+  onTabRun: (tabId: string) => void;
 }
 
 function TabRow({
   tab,
   active,
   canClose,
+  termState,
   onSelect,
   onClose,
+  onRun,
 }: {
   tab: TabEntry;
   active: boolean;
   canClose: boolean;
+  termState: TermState;
   onSelect: () => void;
   onClose: () => void;
+  onRun: () => void;
 }) {
+  const showDot = termState !== "shell";
+  const showRun = !!tab.startupCommand;
+
   return (
     <div
       className={`tab-row ${active ? "active" : ""}`}
       onClick={onSelect}
     >
+      {showDot && <span className={`tab-dot tab-dot-${termState}`}>●</span>}
       <span className="tab-row-title">{tab.title}</span>
-      {active && <span className="tab-row-dot">●</span>}
+      {showRun && (
+        <button
+          className="btn-icon tab-row-run"
+          title="Run command"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRun();
+          }}
+        >
+          ▶
+        </button>
+      )}
       {canClose && (
         <button
           className="btn-icon tab-row-close"
@@ -65,16 +87,20 @@ function BranchSection({
   label,
   tabs,
   activeTabId,
+  termStates,
   onSelectTab,
   onAddTab,
   onCloseTab,
+  onRunTab,
 }: {
   label: string;
   tabs: TabEntry[];
   activeTabId: string | null;
+  termStates: Record<string, TermState>;
   onSelectTab: (tabId: string) => void;
   onAddTab: () => void;
   onCloseTab: (tabId: string) => void;
+  onRunTab: (tabId: string) => void;
 }) {
   return (
     <div className="branch-section">
@@ -100,8 +126,10 @@ function BranchSection({
           tab={tab}
           active={activeTabId === tab.id}
           canClose={tabs.length > 1}
+          termState={termStates[tab.id] ?? "shell"}
           onSelect={() => onSelectTab(tab.id)}
           onClose={() => onCloseTab(tab.id)}
+          onRun={() => onRunTab(tab.id)}
         />
       ))}
     </div>
@@ -232,10 +260,12 @@ function CommandsSection() {
 
 export function Sidebar({
   activeTabId,
+  termStates,
   onSelectTab,
   onStateLoaded,
   onTabCreated,
   onTabClosed,
+  onTabRun,
 }: Props) {
   const [appState, setAppState] = useState<AppState | null>(null);
   const [creating, setCreating] = useState(false);
@@ -312,6 +342,11 @@ export function Sidebar({
     }
   }
 
+  async function handleRunTab(tabId: string) {
+    await invoke("run_tab_command", { tabId }).catch(console.error);
+    onTabRun(tabId);
+  }
+
   if (!appState) return <div className="sidebar"><div className="sidebar-header"><span>branchterm</span></div></div>;
 
   return (
@@ -325,9 +360,11 @@ export function Sidebar({
           label="⌂ main"
           tabs={appState.mainTabs}
           activeTabId={activeTabId}
+          termStates={termStates}
           onSelectTab={onSelectTab}
           onAddTab={() => setModalBranch("__main__")}
           onCloseTab={(tabId) => handleCloseTab("__main__", tabId)}
+          onRunTab={handleRunTab}
         />
 
         {appState.branches.map((b) => (
@@ -336,9 +373,11 @@ export function Sidebar({
             label={b.name}
             tabs={b.tabs}
             activeTabId={activeTabId}
+            termStates={termStates}
             onSelectTab={onSelectTab}
             onAddTab={() => setModalBranch(b.name)}
             onCloseTab={(tabId) => handleCloseTab(b.name, tabId)}
+            onRunTab={handleRunTab}
           />
         ))}
 
