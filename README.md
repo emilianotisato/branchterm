@@ -19,14 +19,18 @@ sudo pacman -S ttf-jetbrains-mono-nerd
 
 branchterm uses `JetBrainsMono Nerd Font Mono` by default. Without it, terminals still work but TUI icons may render as boxes.
 
-## Development
+## Install / Update
 
 ```bash
-# Run dev build (always pass your project path)
-BRANCHTERM_PROJECT=/path/to/your/project npm run tauri dev
+make install
+```
 
-# Build release
-npm run tauri build
+Builds the release binary and copies it to `~/.local/bin/branchterm`. Same command to update after pulling new changes.
+
+Make sure `~/.local/bin` is in your `PATH` (add to `~/.bashrc` or `~/.zshrc` if not):
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ## Usage
@@ -35,4 +39,11 @@ npm run tauri build
 branchterm /path/to/project
 # or from inside the project:
 branchterm .
+```
+
+## Development
+
+```bash
+# Run dev build (always pass your project path)
+BRANCHTERM_PROJECT=/path/to/your/project npm run tauri dev
 ```
