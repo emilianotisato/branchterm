@@ -1,10 +1,11 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Sidebar, AppState } from "./components/Sidebar";
 import { MainArea, TabEntry } from "./components/MainArea";
 import { Scratchpad } from "./components/Scratchpad";
 import { CommandPalette } from "./components/CommandPalette";
 import { BranchPicker } from "./components/BranchPicker";
+import { ShortcutsModal } from "./components/ShortcutsModal";
 import { TermState } from "./types";
 import "./App.css";
 
@@ -13,6 +14,7 @@ export default function App() {
   const [scratchpadFocusCounter, setScratchpadFocusCounter] = useState(0);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [branchPickerOpen, setBranchPickerOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [newTabBranch, setNewTabBranch] = useState<string | null>(null);
   const [tabRecency, setTabRecency] = useState<string[]>([]);
   const [tabBranch, setTabBranch] = useState<Record<string, string>>({});
@@ -40,7 +42,7 @@ export default function App() {
     setTabRecency(prev => [id, ...prev.filter(r => r !== id)]);
   }
 
-  // Stable-closure-safe: reads from refs, safe to capture in Terminal's xterm event handler
+  // Reads from refs — safe to capture in xterm or window event handlers (never stale)
   function handleSwitchTab(dir: "next" | "prev") {
     const tabs = allTabsRef.current;
     const currentId = activeTabIdRef.current;
@@ -57,6 +59,40 @@ export default function App() {
     setScratchpadOpen(true);
     setScratchpadFocusCounter(c => c + 1);
   }
+
+  // Global Ctrl+Shift shortcuts — fires regardless of which element has DOM focus,
+  // including when a terminal has focus (xterm's customKeyEventHandler blocks the
+  // keypress from reaching the PTY; this listener handles the actual UI action).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!e.ctrlKey || !e.shiftKey) return;
+      switch (e.code) {
+        case "BracketRight":
+          e.preventDefault();
+          handleSwitchTab("next");
+          break;
+        case "BracketLeft":
+          e.preventDefault();
+          handleSwitchTab("prev");
+          break;
+        case "KeyP":
+          e.preventDefault();
+          setCommandPaletteOpen(true);
+          break;
+        case "KeyT":
+          e.preventDefault();
+          setBranchPickerOpen(true);
+          break;
+        case "KeyS":
+          e.preventDefault();
+          handleOpenScratchpad();
+          break;
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function computeInitialState(tab: TabEntry): TermState {
     if (!tab.startupCommand) return "shell";
@@ -193,16 +229,13 @@ export default function App() {
         onBranchDeleted={handleBranchDeleted}
         externalModalBranch={newTabBranch}
         onExternalModalClose={() => setNewTabBranch(null)}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
       />
       <MainArea
         activeTabId={activeTabId}
         allTabs={allTabs}
         onExit={(tabId) => handleTermEvent(tabId, "exit")}
         onExitCode={(tabId, code) => handleTermEvent(tabId, { exitCode: code })}
-        onSwitchTab={handleSwitchTab}
-        onOpenPalette={() => setCommandPaletteOpen(true)}
-        onOpenNewTabPicker={() => setBranchPickerOpen(true)}
-        onOpenScratchpad={handleOpenScratchpad}
       />
       <div className={`right-pane ${scratchpadOpen ? "open" : ""}`}>
         <button
@@ -238,6 +271,10 @@ export default function App() {
           }}
           onClose={() => setBranchPickerOpen(false)}
         />
+      )}
+
+      {shortcutsOpen && (
+        <ShortcutsModal onClose={() => setShortcutsOpen(false)} />
       )}
     </div>
   );

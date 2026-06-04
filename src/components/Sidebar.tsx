@@ -31,6 +31,7 @@ interface Props {
   onBranchDeleted: (branch: string, tabIds: string[]) => void;
   externalModalBranch?: string | null;
   onExternalModalClose?: () => void;
+  onOpenShortcuts?: () => void;
 }
 
 function TabRow({
@@ -301,6 +302,7 @@ export function Sidebar({
   onBranchDeleted,
   externalModalBranch,
   onExternalModalClose,
+  onOpenShortcuts,
 }: Props) {
   const [appState, setAppState] = useState<AppState | null>(null);
   const [currentBranch, setCurrentBranch] = useState("main");
@@ -483,9 +485,19 @@ export function Sidebar({
             </div>
           </div>
         ) : (
-          <button className="btn btn-primary" onClick={() => setCreating(true)}>
-            + New Branch
-          </button>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setCreating(true)}>
+              + New Branch
+            </button>
+            <button
+              className="btn btn-ghost"
+              style={{ padding: "5px 8px", border: "1px solid var(--border)", borderRadius: "3px" }}
+              title="Keyboard shortcuts"
+              onClick={onOpenShortcuts}
+            >
+              ?
+            </button>
+          </div>
         )}
       </div>
 

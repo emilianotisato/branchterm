@@ -10,32 +10,15 @@ interface Props {
   active: boolean;
   onExit: () => void;
   onExitCode: (code: number) => void;
-  onSwitchTab: (dir: "next" | "prev") => void;
-  onOpenPalette: () => void;
-  onOpenNewTabPicker: () => void;
-  onOpenScratchpad: () => void;
 }
 
-export function Terminal({ tabId, active, onExit, onExitCode, onSwitchTab, onOpenPalette, onOpenNewTabPicker, onOpenScratchpad }: Props) {
+export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const unlistenExitRef = useRef<UnlistenFn | null>(null);
   const unlistenExitCodeRef = useRef<UnlistenFn | null>(null);
-
-  // Refs kept in sync every render — safe to call from inside xterm's event handler
-  const onSwitchTabRef = useRef(onSwitchTab);
-  const onOpenPaletteRef = useRef(onOpenPalette);
-  const onOpenNewTabPickerRef = useRef(onOpenNewTabPicker);
-  const onOpenScratchpadRef = useRef(onOpenScratchpad);
-
-  useEffect(() => {
-    onSwitchTabRef.current = onSwitchTab;
-    onOpenPaletteRef.current = onOpenPalette;
-    onOpenNewTabPickerRef.current = onOpenNewTabPicker;
-    onOpenScratchpadRef.current = onOpenScratchpad;
-  });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -98,16 +81,18 @@ export function Terminal({ tabId, active, onExit, onExitCode, onSwitchTab, onOpe
       invoke("pty_input", { tabId, data }).catch(console.error);
     });
 
-    // Intercept Ctrl+Shift shortcuts before they reach the terminal process.
-    // Returns false to consume the event (not forwarded to PTY).
+    // Block handled Ctrl+Shift combos from reaching the PTY process.
+    // The actual actions are handled by a global window listener in App.tsx,
+    // which fires regardless of which element has DOM focus.
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
       if (!e.ctrlKey || !e.shiftKey || e.type !== "keydown") return true;
       switch (e.code) {
-        case "BracketRight": onSwitchTabRef.current("next"); return false;
-        case "BracketLeft":  onSwitchTabRef.current("prev"); return false;
-        case "KeyP":         onOpenPaletteRef.current();     return false;
-        case "KeyT":         onOpenNewTabPickerRef.current(); return false;
-        case "KeyS":         onOpenScratchpadRef.current();  return false;
+        case "BracketRight":
+        case "BracketLeft":
+        case "KeyP":
+        case "KeyT":
+        case "KeyS":
+          return false;
       }
       return true;
     });
@@ -132,8 +117,11 @@ export function Terminal({ tabId, active, onExit, onExitCode, onSwitchTab, onOpe
   }, [tabId]);
 
   useEffect(() => {
-    if (active && fitRef.current) {
-      setTimeout(() => fitRef.current?.fit(), 50);
+    if (active) {
+      setTimeout(() => {
+        fitRef.current?.fit();
+        termRef.current?.focus();
+      }, 50);
     }
   }, [active]);
 
