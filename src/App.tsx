@@ -19,11 +19,11 @@ export default function App() {
 
     // Spawn PTY for every tab
     for (const tab of state.mainTabs) {
-      invoke("spawn_tab", { branch: "__main__", tab_id: tab.id }).catch(console.error);
+      invoke("spawn_tab", { branch: "__main__", tabId: tab.id }).catch(console.error);
     }
     for (const branch of state.branches) {
       for (const tab of branch.tabs) {
-        invoke("spawn_tab", { branch: branch.name, tab_id: tab.id }).catch(console.error);
+        invoke("spawn_tab", { branch: branch.name, tabId: tab.id }).catch(console.error);
       }
     }
 

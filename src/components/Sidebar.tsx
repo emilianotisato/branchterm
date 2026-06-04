@@ -291,7 +291,7 @@ export function Sidebar({
 
   async function handleCloseTab(branch: string, tabId: string) {
     try {
-      await invoke("close_tab", { branch, tab_id: tabId });
+      await invoke("close_tab", { branch, tabId });
       setAppState((prev) => {
         if (!prev) return prev;
         if (branch === "__main__") {

@@ -66,13 +66,13 @@ export function Terminal({ tabId, active }: Props) {
     });
 
     term.onData((data) => {
-      invoke("pty_input", { tab_id: tabId, data }).catch(console.error);
+      invoke("pty_input", { tabId, data }).catch(console.error);
     });
 
     const ro = new ResizeObserver(() => {
       fit.fit();
       invoke("pty_resize", {
-        tab_id: tabId,
+        tabId,
         cols: term.cols,
         rows: term.rows,
       }).catch(console.error);
