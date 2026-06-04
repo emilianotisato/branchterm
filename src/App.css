@@ -15,7 +15,7 @@
   --accent-hover: #1a8ad4;
   --danger: #f44747;
   --success: #4caf50;
-  --sidebar-width: 240px;
+  --sidebar-width: 180px;
   --scratchpad-width: 320px;
 }
 
@@ -576,6 +576,7 @@ html, body, #root {
   flex: 1;
   overflow: hidden;
   position: relative;
+  padding-left: 4px;
 }
 
 .cmd-picker-overlay {

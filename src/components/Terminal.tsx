@@ -122,6 +122,10 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
         fitRef.current?.fit();
         termRef.current?.focus();
       }, 50);
+      // second fit after TUI has time to redraw; fixes broken layouts on tab switch
+      setTimeout(() => {
+        fitRef.current?.fit();
+      }, 150);
     }
   }, [active]);
 
