@@ -26,6 +26,7 @@ interface Props {
   onTabCreated: (branch: string, tab: TabEntry) => void;
   onTabClosed: (branch: string, tabId: string) => void;
   onTabRun: (tabId: string) => void;
+  onBranchDeleted: (branch: string, tabIds: string[]) => void;
 }
 
 function TabRow({
@@ -92,6 +93,7 @@ function BranchSection({
   onAddTab,
   onCloseTab,
   onRunTab,
+  onDeleteBranch,
 }: {
   label: string;
   tabs: TabEntry[];
@@ -101,6 +103,7 @@ function BranchSection({
   onAddTab: () => void;
   onCloseTab: (tabId: string) => void;
   onRunTab: (tabId: string) => void;
+  onDeleteBranch?: () => void;
 }) {
   return (
     <div className="branch-section">
@@ -108,6 +111,18 @@ function BranchSection({
         <span className="branch-section-name" title={label}>
           {label}
         </span>
+        {onDeleteBranch && (
+          <button
+            className="btn-icon branch-delete-btn"
+            title="Delete branch"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteBranch();
+            }}
+          >
+            ✕
+          </button>
+        )}
         <button
           className="btn-icon"
           style={{ opacity: 1, fontSize: "14px" }}
@@ -266,6 +281,7 @@ export function Sidebar({
   onTabCreated,
   onTabClosed,
   onTabRun,
+  onBranchDeleted,
 }: Props) {
   const [appState, setAppState] = useState<AppState | null>(null);
   const [creating, setCreating] = useState(false);
@@ -347,6 +363,20 @@ export function Sidebar({
     onTabRun(tabId);
   }
 
+  async function handleDeleteBranch(branchName: string, tabIds: string[]) {
+    if (!window.confirm(`Delete branch "${branchName}"? This removes the workspace directory.`)) return;
+    try {
+      await invoke("delete_branch_state", { branch: branchName });
+      setAppState((prev) => {
+        if (!prev) return prev;
+        return { ...prev, branches: prev.branches.filter((b) => b.name !== branchName) };
+      });
+      onBranchDeleted(branchName, tabIds);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   if (!appState) return <div className="sidebar"><div className="sidebar-header"><span>branchterm</span></div></div>;
 
   return (
@@ -365,6 +395,7 @@ export function Sidebar({
           onAddTab={() => setModalBranch("__main__")}
           onCloseTab={(tabId) => handleCloseTab("__main__", tabId)}
           onRunTab={handleRunTab}
+          // no onDeleteBranch — main cannot be deleted
         />
 
         {appState.branches.map((b) => (
@@ -378,6 +409,7 @@ export function Sidebar({
             onAddTab={() => setModalBranch(b.name)}
             onCloseTab={(tabId) => handleCloseTab(b.name, tabId)}
             onRunTab={handleRunTab}
+            onDeleteBranch={() => handleDeleteBranch(b.name, b.tabs.map((t) => t.id))}
           />
         ))}
 

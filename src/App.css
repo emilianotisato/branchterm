@@ -77,6 +77,20 @@ html, body, #root {
   gap: 4px;
 }
 
+.branch-delete-btn {
+  opacity: 0;
+  font-size: 10px;
+  transition: opacity 0.1s, color 0.1s;
+}
+
+.branch-section-header:hover .branch-delete-btn {
+  opacity: 1;
+}
+
+.branch-delete-btn:hover {
+  color: var(--danger) !important;
+}
+
 .branch-section-name {
   flex: 1;
   font-size: 12px;

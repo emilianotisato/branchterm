@@ -83,6 +83,20 @@ export default function App() {
     setTermStates((prev) => ({ ...prev, [tabId]: "running" }));
   }
 
+  function handleBranchDeleted(branch: string, tabIds: string[]) {
+    const idSet = new Set(tabIds);
+    setAllTabs((prev) => prev.filter((t) => !idSet.has(t.id)));
+    setTermStates((prev) => {
+      const next = { ...prev };
+      for (const id of tabIds) delete next[id];
+      return next;
+    });
+    if (activeTabId && idSet.has(activeTabId)) {
+      setActiveTabId(allTabs.find((t) => !idSet.has(t.id))?.id ?? null);
+    }
+    void branch;
+  }
+
   return (
     <div className="app">
       <Sidebar
@@ -93,6 +107,7 @@ export default function App() {
         onTabCreated={handleTabCreated}
         onTabClosed={handleTabClosed}
         onTabRun={handleTabRun}
+        onBranchDeleted={handleBranchDeleted}
       />
       <MainArea
         activeTabId={activeTabId}
