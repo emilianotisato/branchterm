@@ -284,6 +284,7 @@ html, body, #root {
   flex-direction: column;
   overflow: hidden;
   background: var(--bg);
+  padding-left: 4px;
 }
 
 .placeholder {
@@ -589,7 +590,6 @@ html, body, #root {
   flex: 1;
   overflow: hidden;
   position: relative;
-  padding-left: 4px;
 }
 
 .cmd-picker-overlay {

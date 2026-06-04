@@ -117,26 +117,43 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
   }, [tabId]);
 
   useEffect(() => {
-    if (active) {
-      const sendResize = () => {
-        const fit = fitRef.current;
-        const term = termRef.current;
-        if (!fit || !term) return;
-        fit.fit();
-        invoke("pty_resize", { tabId, cols: term.cols, rows: term.rows }).catch(console.error);
-      };
-      setTimeout(() => { sendResize(); termRef.current?.focus(); }, 50);
-      setTimeout(sendResize, 150);
-    }
+    if (!active) return;
+
+    const sendResize = () => {
+      const fit = fitRef.current;
+      const term = termRef.current;
+      if (!fit || !term) return;
+      fit.fit();
+      invoke("pty_resize", { tabId, cols: term.cols, rows: term.rows }).catch(console.error);
+    };
+
+    let t1: ReturnType<typeof setTimeout>;
+    let t2: ReturnType<typeof setTimeout>;
+
+    // rAF fires after browser layout is committed, so offsetWidth/offsetHeight are real
+    const raf = requestAnimationFrame(() => {
+      sendResize();
+      termRef.current?.focus();
+      // retries for TUIs that need more than one SIGWINCH to redraw
+      t1 = setTimeout(sendResize, 100);
+      t2 = setTimeout(sendResize, 350);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [active, tabId]);
 
   return (
     <div
       ref={containerRef}
       style={{
-        width: "100%",
-        height: "100%",
-        display: active ? "block" : "none",
+        position: "absolute",
+        inset: 0,
+        visibility: active ? "visible" : "hidden",
+        pointerEvents: active ? "auto" : "none",
       }}
     />
   );
