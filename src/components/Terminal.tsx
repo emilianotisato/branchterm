@@ -116,6 +116,22 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
     };
   }, [tabId]);
 
+  // Window capture listener intercepts Shift+Enter before xterm.js sees it.
+  // Sends kitty keyboard protocol sequence so Claude Code can insert newlines.
+  useEffect(() => {
+    if (!active) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.type !== "keydown") return;
+      if (!e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+      if (e.key !== "Enter" && e.code !== "Enter") return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      invoke("pty_input", { tabId, data: "\x1b[13;2u" }).catch(console.error);
+    }
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [active, tabId]);
+
   useEffect(() => {
     if (!active) return;
 
