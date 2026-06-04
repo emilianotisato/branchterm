@@ -51,6 +51,7 @@ pub fn run(project_path: PathBuf) {
             commands::write_scratchpad,
             commands::get_project_branches,
             commands::merge_branch,
+            commands::get_current_branch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { NewTabModal, TabEntry } from "./NewTabModal";
 import { FreqCommand } from "./CommandPicker";
 import { TermState } from "../types";
@@ -299,6 +300,7 @@ export function Sidebar({
   onBranchDeleted,
 }: Props) {
   const [appState, setAppState] = useState<AppState | null>(null);
+  const [currentBranch, setCurrentBranch] = useState("main");
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -310,7 +312,15 @@ export function Sidebar({
     invoke<AppState>("get_state").then((s) => {
       setAppState(s);
       onStateLoaded(s);
+      const name = s.projectPath.split("/").pop() || s.projectPath;
+      document.title = name;
+      getCurrentWindow().setTitle(name).catch((e) => console.error("setTitle failed:", e));
     });
+    const refreshBranch = () =>
+      invoke<string>("get_current_branch").then(setCurrentBranch).catch(() => {});
+    refreshBranch();
+    const timer = setInterval(refreshBranch, 2000);
+    return () => clearInterval(timer);
   }, []);
 
   async function handleCreate() {
@@ -393,17 +403,13 @@ export function Sidebar({
     }
   }
 
-  if (!appState) return <div className="sidebar"><div className="sidebar-header"><span>branchterm</span></div></div>;
+  if (!appState) return <div className="sidebar"></div>;
 
   return (
     <div className="sidebar">
-      <div className="sidebar-header">
-        <span>branchterm</span>
-      </div>
-
       <div className="branches-list">
         <BranchSection
-          label="⌂ main"
+          label={`⌂ ${currentBranch}`}
           tabs={appState.mainTabs}
           activeTabId={activeTabId}
           termStates={termStates}

@@ -140,7 +140,7 @@ fn is_dirty(path: &Path) -> Result<bool, String> {
     Ok(!out.stdout.is_empty())
 }
 
-fn current_branch(path: &Path) -> Result<String, String> {
+pub fn current_branch(path: &Path) -> Result<String, String> {
     let out = Command::new("git")
         .args(["-C", &path.to_string_lossy(), "branch", "--show-current"])
         .output()

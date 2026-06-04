@@ -295,6 +295,11 @@ pub async fn get_project_branches(ctx: State<'_, AppContext>) -> Result<Vec<Stri
 }
 
 #[tauri::command]
+pub async fn get_current_branch(ctx: State<'_, AppContext>) -> Result<String, String> {
+    merge::current_branch(&ctx.project_path)
+}
+
+#[tauri::command]
 pub async fn merge_branch(
     branch: String,
     target_branch: String,

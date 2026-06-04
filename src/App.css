@@ -46,19 +46,6 @@ html, body, #root {
   overflow: hidden;
 }
 
-.sidebar-header {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.sidebar-header span {
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-}
 
 .branches-list {
   flex: 1;
