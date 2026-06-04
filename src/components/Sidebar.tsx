@@ -29,6 +29,8 @@ interface Props {
   onTabClosed: (branch: string, tabId: string) => void;
   onTabRun: (tabId: string) => void;
   onBranchDeleted: (branch: string, tabIds: string[]) => void;
+  externalModalBranch?: string | null;
+  onExternalModalClose?: () => void;
 }
 
 function TabRow({
@@ -297,6 +299,8 @@ export function Sidebar({
   onTabClosed,
   onTabRun,
   onBranchDeleted,
+  externalModalBranch,
+  onExternalModalClose,
 }: Props) {
   const [appState, setAppState] = useState<AppState | null>(null);
   const [currentBranch, setCurrentBranch] = useState("main");
@@ -355,6 +359,7 @@ export function Sidebar({
     });
     onTabCreated(branch, tab);
     setModalBranch(null);
+    onExternalModalClose?.();
   }
 
   async function handleCloseTab(branch: string, tabId: string) {
@@ -484,11 +489,14 @@ export function Sidebar({
         )}
       </div>
 
-      {modalBranch && (
+      {(modalBranch ?? externalModalBranch) && (
         <NewTabModal
-          branch={modalBranch}
-          onCreated={(tab) => handleTabCreated(modalBranch, tab)}
-          onClose={() => setModalBranch(null)}
+          branch={(modalBranch ?? externalModalBranch)!}
+          onCreated={(tab) => handleTabCreated((modalBranch ?? externalModalBranch)!, tab)}
+          onClose={() => {
+            setModalBranch(null);
+            onExternalModalClose?.();
+          }}
         />
       )}
 

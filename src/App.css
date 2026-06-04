@@ -684,3 +684,89 @@ input[type="text"] {
 input[type="text"]:focus {
   border-color: var(--accent);
 }
+
+/* Command palette / Branch picker */
+.modal-overlay:has(.command-palette) {
+  align-items: flex-start;
+  padding-top: 18vh;
+}
+
+.command-palette {
+  width: 480px;
+  max-height: 400px;
+}
+
+.palette-input {
+  background: var(--bg);
+  color: var(--text);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+}
+
+.palette-input:focus {
+  border-bottom-color: var(--accent);
+}
+
+.palette-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+
+.palette-item {
+  padding: 7px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.palette-item:hover,
+.palette-item.highlighted {
+  background: var(--bg-sidebar);
+}
+
+.palette-item.current {
+  opacity: 0.6;
+}
+
+.palette-branch {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  min-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-title {
+  font-size: 12px;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-current-badge {
+  font-size: 10px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
+.palette-empty {
+  padding: 20px 14px;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: center;
+}

@@ -12,9 +12,13 @@ interface Props {
   allTabs: TabEntry[];
   onExit: (tabId: string) => void;
   onExitCode: (tabId: string, code: number) => void;
+  onSwitchTab: (dir: "next" | "prev") => void;
+  onOpenPalette: () => void;
+  onOpenNewTabPicker: () => void;
+  onOpenScratchpad: () => void;
 }
 
-export function MainArea({ activeTabId, allTabs, onExit, onExitCode }: Props) {
+export function MainArea({ activeTabId, allTabs, onExit, onExitCode, onSwitchTab, onOpenPalette, onOpenNewTabPicker, onOpenScratchpad }: Props) {
 
   if (allTabs.length === 0) {
     return (
@@ -34,6 +38,10 @@ export function MainArea({ activeTabId, allTabs, onExit, onExitCode }: Props) {
             active={activeTabId === tab.id}
             onExit={() => onExit(tab.id)}
             onExitCode={(code) => onExitCode(tab.id, code)}
+            onSwitchTab={onSwitchTab}
+            onOpenPalette={onOpenPalette}
+            onOpenNewTabPicker={onOpenNewTabPicker}
+            onOpenScratchpad={onOpenScratchpad}
           />
         ))}
       </div>

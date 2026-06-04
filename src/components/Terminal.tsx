@@ -10,15 +10,32 @@ interface Props {
   active: boolean;
   onExit: () => void;
   onExitCode: (code: number) => void;
+  onSwitchTab: (dir: "next" | "prev") => void;
+  onOpenPalette: () => void;
+  onOpenNewTabPicker: () => void;
+  onOpenScratchpad: () => void;
 }
 
-export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
+export function Terminal({ tabId, active, onExit, onExitCode, onSwitchTab, onOpenPalette, onOpenNewTabPicker, onOpenScratchpad }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const unlistenExitRef = useRef<UnlistenFn | null>(null);
   const unlistenExitCodeRef = useRef<UnlistenFn | null>(null);
+
+  // Refs kept in sync every render — safe to call from inside xterm's event handler
+  const onSwitchTabRef = useRef(onSwitchTab);
+  const onOpenPaletteRef = useRef(onOpenPalette);
+  const onOpenNewTabPickerRef = useRef(onOpenNewTabPicker);
+  const onOpenScratchpadRef = useRef(onOpenScratchpad);
+
+  useEffect(() => {
+    onSwitchTabRef.current = onSwitchTab;
+    onOpenPaletteRef.current = onOpenPalette;
+    onOpenNewTabPickerRef.current = onOpenNewTabPicker;
+    onOpenScratchpadRef.current = onOpenScratchpad;
+  });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -79,6 +96,20 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
 
     term.onData((data) => {
       invoke("pty_input", { tabId, data }).catch(console.error);
+    });
+
+    // Intercept Ctrl+Shift shortcuts before they reach the terminal process.
+    // Returns false to consume the event (not forwarded to PTY).
+    term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+      if (!e.ctrlKey || !e.shiftKey || e.type !== "keydown") return true;
+      switch (e.code) {
+        case "BracketRight": onSwitchTabRef.current("next"); return false;
+        case "BracketLeft":  onSwitchTabRef.current("prev"); return false;
+        case "KeyP":         onOpenPaletteRef.current();     return false;
+        case "KeyT":         onOpenNewTabPickerRef.current(); return false;
+        case "KeyS":         onOpenScratchpadRef.current();  return false;
+      }
+      return true;
     });
 
     const ro = new ResizeObserver(() => {
