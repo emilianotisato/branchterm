@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FreqCommand } from "./CommandPicker";
 
@@ -20,14 +20,32 @@ type Mode = "pick" | "custom";
 export function NewTabModal({ branch, onCreated, onClose }: Props) {
   const [mode, setMode] = useState<Mode>("pick");
   const [commands, setCommands] = useState<FreqCommand[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [customCmd, setCustomCmd] = useState("");
   const [customName, setCustomName] = useState("");
   const [autostart, setAutostart] = useState(true);
   const [loading, setLoading] = useState(false);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     invoke<FreqCommand[]>("get_commands").then(setCommands).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [commands, mode]);
+
+  useEffect(() => {
+    itemRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
+  // focus name input when switching to custom mode
+  useEffect(() => {
+    if (mode === "custom") {
+      setTimeout(() => nameInputRef.current?.focus(), 0);
+    }
+  }, [mode]);
 
   async function createTab(command: string | null, title: string) {
     setLoading(true);
@@ -56,6 +74,42 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
     }
   }
 
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      // don't intercept modifier combos (Ctrl+Shift+T etc.)
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (mode === "pick") {
+        if (e.key === "ArrowDown") {
+          e.preventDefault(); e.stopPropagation();
+          setSelectedIndex((i) => Math.min(i + 1, commands.length - 1));
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault(); e.stopPropagation();
+          setSelectedIndex((i) => Math.max(i - 1, 0));
+        } else if (e.key === "Enter") {
+          e.preventDefault(); e.stopPropagation();
+          const c = commands[selectedIndex];
+          if (c && !loading) createTab(c.cmd, c.label);
+        } else if (e.key === "Tab") {
+          e.preventDefault(); e.stopPropagation();
+          setMode("custom");
+        } else if (e.key === "Escape") {
+          e.preventDefault(); e.stopPropagation();
+          onClose();
+        }
+      } else if (mode === "custom") {
+        if (e.key === "Escape") {
+          e.preventDefault(); e.stopPropagation();
+          onClose();
+        }
+        // Tab/Enter/Shift+Tab handled by input onKeyDown handlers
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+  }, [mode, commands, selectedIndex, loading, onClose]);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -70,12 +124,14 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
           <button
             className={`modal-tab ${mode === "pick" ? "active" : ""}`}
             onClick={() => setMode("pick")}
+            tabIndex={-1}
           >
             Global Commands
           </button>
           <button
             className={`modal-tab ${mode === "custom" ? "active" : ""}`}
             onClick={() => setMode("custom")}
+            tabIndex={-1}
           >
             Custom / Shell
           </button>
@@ -89,11 +145,13 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
               </div>
             ) : (
               <div className="modal-cmd-list">
-                {commands.map((c) => (
+                {commands.map((c, i) => (
                   <div
                     key={c.id}
-                    className="modal-cmd-item"
+                    ref={(el) => { itemRefs.current[i] = el; }}
+                    className={`modal-cmd-item${selectedIndex === i ? " selected" : ""}`}
                     onClick={() => !loading && createTab(c.cmd, c.label)}
+                    onMouseEnter={() => setSelectedIndex(i)}
                   >
                     <span className="modal-cmd-label">{c.label}</span>
                     <code className="modal-cmd-str">{c.cmd}</code>
@@ -107,6 +165,7 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
                   type="checkbox"
                   checked={autostart}
                   onChange={(e) => setAutostart(e.target.checked)}
+                  tabIndex={-1}
                 />
                 Auto-start on open
               </label>
@@ -114,6 +173,7 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
                 className="btn btn-ghost"
                 onClick={() => createTab(null, "Shell")}
                 disabled={loading}
+                tabIndex={-1}
               >
                 Open plain shell instead
               </button>
@@ -127,14 +187,17 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
               Enter a command to run automatically, or leave blank for a plain shell.
             </p>
             <input
+              ref={nameInputRef}
               type="text"
               placeholder="name (e.g. Dev Server)"
               value={customName}
               onChange={(e) => setCustomName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Escape") onClose();
+                if (e.key === "Tab" && e.shiftKey) {
+                  e.preventDefault();
+                  setMode("pick");
+                }
               }}
-              autoFocus
               disabled={loading}
             />
             <input
@@ -144,7 +207,6 @@ export function NewTabModal({ branch, onCreated, onClose }: Props) {
               onChange={(e) => setCustomCmd(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCustomSubmit();
-                if (e.key === "Escape") onClose();
               }}
               disabled={loading}
             />
