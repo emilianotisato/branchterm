@@ -14,6 +14,7 @@ pub struct PtyHandle {
     writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
     child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
+    child_pid: Option<u32>,
     /// Gating flag: set to true just before the first startup command is
     /// written. Prevents the initial shell prompt's PROMPT_COMMAND firing
     /// (exit code 0) from transitioning state before the command runs.
@@ -39,8 +40,71 @@ impl PtyHandle {
     }
 
     pub fn kill(&mut self) {
+        #[cfg(unix)]
+        kill_unix_session(self.child_pid);
+
         let _ = self.child.lock().unwrap().kill();
     }
+}
+
+#[cfg(unix)]
+fn kill_unix_session(child_pid: Option<u32>) {
+    const SIGTERM: i32 = 15;
+    const SIGKILL: i32 = 9;
+
+    let Some(child_pid) = child_pid else {
+        return;
+    };
+    let Some(session_id) = unix_session_id(child_pid as i32) else {
+        return;
+    };
+
+    signal_unix_session(session_id, SIGTERM);
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    signal_unix_session(session_id, SIGKILL);
+}
+
+#[cfg(unix)]
+fn unix_session_id(pid: i32) -> Option<i32> {
+    unsafe extern "C" {
+        fn getsid(pid: i32) -> i32;
+    }
+
+    let sid = unsafe { getsid(pid) };
+    (sid > 0).then_some(sid)
+}
+
+#[cfg(unix)]
+fn signal_unix_session(session_id: i32, signal: i32) {
+    unsafe extern "C" {
+        fn kill(pid: i32, sig: i32) -> i32;
+    }
+
+    for pid in pids_in_unix_session(session_id) {
+        let _ = unsafe { kill(pid, signal) };
+    }
+}
+
+#[cfg(unix)]
+fn pids_in_unix_session(session_id: i32) -> Vec<i32> {
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+
+    entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let pid = entry.file_name().to_string_lossy().parse::<i32>().ok()?;
+            let stat = std::fs::read_to_string(entry.path().join("stat")).ok()?;
+            (session_id_from_stat(&stat) == Some(session_id)).then_some(pid)
+        })
+        .collect()
+}
+
+#[cfg(unix)]
+fn session_id_from_stat(stat: &str) -> Option<i32> {
+    let after_comm = stat.rsplit_once(") ")?.1;
+    after_comm.split_whitespace().nth(3)?.parse().ok()
 }
 
 pub type PtyMap = Arc<Mutex<HashMap<String, PtyHandle>>>;
@@ -77,18 +141,26 @@ struct OscParser {
 
 impl OscParser {
     fn new() -> Self {
-        OscParser { state: OscState::Normal }
+        OscParser {
+            state: OscState::Normal,
+        }
     }
 
     fn feed(&mut self, byte: u8) -> Option<Vec<u8>> {
         let prev = std::mem::replace(&mut self.state, OscState::Normal);
         match prev {
             OscState::Normal => {
-                if byte == 0x1b { self.state = OscState::Esc; }
+                if byte == 0x1b {
+                    self.state = OscState::Esc;
+                }
                 None
             }
             OscState::Esc => {
-                self.state = if byte == b']' { OscState::OscOpen } else { OscState::Normal };
+                self.state = if byte == b']' {
+                    OscState::OscOpen
+                } else {
+                    OscState::Normal
+                };
                 None
             }
             OscState::OscOpen => {
@@ -108,7 +180,11 @@ impl OscParser {
                 }
             }
             OscState::EscInOsc(buf) => {
-                if byte == b'\\' { Some(buf) } else { None }
+                if byte == b'\\' {
+                    Some(buf)
+                } else {
+                    None
+                }
             }
         }
     }
@@ -151,6 +227,7 @@ pub fn spawn_pty(
         .slave
         .spawn_command(cmd)
         .map_err(|e| format!("Failed to spawn shell: {e}"))?;
+    let child_pid = child.process_id();
 
     drop(pair.slave);
 
@@ -178,6 +255,7 @@ pub fn spawn_pty(
                 writer,
                 master: pair.master,
                 child: child_arc,
+                child_pid,
                 command_started,
             },
         );
@@ -244,8 +322,7 @@ pub fn spawn_pty(
         // Uses `; clear` to wipe the visible injection line from the terminal.
         // branchterm;ec=$? fires after EVERY command for ongoing state tracking.
         let hook = if shell_name == "zsh" {
-            "precmd() { local c=$?; printf \"\\033]branchterm;ec=$c\\007\"; }; clear\n"
-                .to_string()
+            "precmd() { local c=$?; printf \"\\033]branchterm;ec=$c\\007\"; }; clear\n".to_string()
         } else {
             "PROMPT_COMMAND='__bt_e=$?; printf \"\\033]branchterm;ec=$__bt_e\\007\"'; clear\n"
                 .to_string()
@@ -280,8 +357,23 @@ pub fn spawn_pty(
 }
 
 pub fn kill_pty(tab_id: &str, pty_map: &PtyMap) {
-    let mut map = pty_map.lock().unwrap();
-    if let Some(mut handle) = map.remove(tab_id) {
+    let handle = {
+        let mut map = pty_map.lock().unwrap();
+        map.remove(tab_id)
+    };
+
+    if let Some(mut handle) = handle {
+        handle.kill();
+    }
+}
+
+pub fn kill_all_pty(pty_map: &PtyMap) {
+    let handles = {
+        let mut map = pty_map.lock().unwrap();
+        std::mem::take(&mut *map)
+    };
+
+    for (_, mut handle) in handles {
         handle.kill();
     }
 }
@@ -300,4 +392,78 @@ pub fn resize_pty(tab_id: &str, cols: u16, rows: u16, pty_map: &PtyMap) -> Resul
         .get(tab_id)
         .ok_or_else(|| format!("No PTY for tab '{tab_id}'"))?;
     handle.resize(cols, rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn parses_session_id_from_proc_stat() {
+        let stat = "1234 (bash) S 1000 1234 5678 34816 1234 4194304 1 2 3 4 0 0 0 0 20 0 1 0 12345";
+
+        assert_eq!(session_id_from_stat(stat), Some(5678));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn parses_session_id_when_command_has_spaces() {
+        let stat = "1234 (npm run watch) S 1000 1234 5678 34816 1234 4194304 1 2 3 4 0 0 0 0";
+
+        assert_eq!(session_id_from_stat(stat), Some(5678));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn kill_unix_session_terminates_descendants() {
+        use std::process::Command;
+        use std::thread;
+        use std::time::{Duration, Instant};
+
+        let mut child = Command::new("setsid")
+            .args(["sh", "-c", "sleep 30 & sleep 30"])
+            .spawn()
+            .expect("spawn test session");
+
+        thread::sleep(Duration::from_millis(100));
+        let session_id = unix_session_id(child.id() as i32).expect("test session id");
+        assert!(
+            live_pids_in_session(session_id).len() >= 2,
+            "test session should contain the shell and at least one child"
+        );
+
+        kill_unix_session(Some(child.id()));
+        let _ = child.wait();
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        loop {
+            let remaining = live_pids_in_session(session_id);
+            if remaining.is_empty() {
+                break;
+            }
+            if Instant::now() >= deadline {
+                panic!("session still has live processes after cleanup: {remaining:?}");
+            }
+            thread::sleep(Duration::from_millis(25));
+        }
+    }
+
+    #[cfg(unix)]
+    fn live_pids_in_session(session_id: i32) -> Vec<i32> {
+        pids_in_unix_session(session_id)
+            .into_iter()
+            .filter(|pid| !is_zombie(*pid))
+            .collect()
+    }
+
+    #[cfg(unix)]
+    fn is_zombie(pid: i32) -> bool {
+        let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+            return false;
+        };
+        stat.rsplit_once(") ")
+            .and_then(|(_, after_comm)| after_comm.split_whitespace().next())
+            == Some("Z")
+    }
 }
