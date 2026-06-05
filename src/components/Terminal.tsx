@@ -9,11 +9,12 @@ interface Props {
   tabId: string;
   visible: boolean;
   focused: boolean;
+  settling?: boolean;
   onExit: () => void;
   onExitCode: (code: number) => void;
 }
 
-export function Terminal({ tabId, visible, focused, onExit, onExitCode }: Props) {
+export function Terminal({ tabId, visible, focused, settling = false, onExit, onExitCode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -21,7 +22,35 @@ export function Terminal({ tabId, visible, focused, onExit, onExitCode }: Props)
   const unlistenExitRef = useRef<UnlistenFn | null>(null);
   const unlistenExitCodeRef = useRef<UnlistenFn | null>(null);
   const visibleRef = useRef(visible);
+  const refitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   visibleRef.current = visible;
+
+  function refitTerminal() {
+    const fit = fitRef.current;
+    const term = termRef.current;
+    if (!fit || !term || !visibleRef.current || !containerRef.current) return;
+
+    const { clientWidth, clientHeight } = containerRef.current;
+    if (clientWidth < 2 || clientHeight < 2) return;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!fitRef.current || !termRef.current || !visibleRef.current) return;
+        fitRef.current.fit();
+        termRef.current.refresh(0, termRef.current.rows - 1);
+        invoke("pty_resize", {
+          tabId,
+          cols: termRef.current.cols,
+          rows: termRef.current.rows,
+        }).catch(console.error);
+      });
+    });
+  }
+
+  function scheduleRefit(delayMs = 32) {
+    if (refitTimerRef.current) clearTimeout(refitTimerRef.current);
+    refitTimerRef.current = setTimeout(refitTerminal, delayMs);
+  }
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -95,18 +124,11 @@ export function Terminal({ tabId, visible, focused, onExit, onExitCode }: Props)
       return true;
     });
 
-    const ro = new ResizeObserver(() => {
-      if (!visibleRef.current) return;
-      fit.fit();
-      invoke("pty_resize", {
-        tabId,
-        cols: term.cols,
-        rows: term.rows,
-      }).catch(console.error);
-    });
+    const ro = new ResizeObserver(() => scheduleRefit(48));
     ro.observe(containerRef.current);
 
     return () => {
+      if (refitTimerRef.current) clearTimeout(refitTimerRef.current);
       ro.disconnect();
       unlistenRef.current?.();
       unlistenExitRef.current?.();
@@ -125,13 +147,7 @@ export function Terminal({ tabId, visible, focused, onExit, onExitCode }: Props)
   useEffect(() => {
     if (!visible) return;
     function onLayoutChange() {
-      const fit = fitRef.current;
-      const term = termRef.current;
-      if (!fit || !term) return;
-      requestAnimationFrame(() => {
-        fit.fit();
-        invoke("pty_resize", { tabId, cols: term.cols, rows: term.rows }).catch(console.error);
-      });
+      scheduleRefit(80);
     }
     window.addEventListener("branchterm:pane-layout-changed", onLayoutChange);
     return () => window.removeEventListener("branchterm:pane-layout-changed", onLayoutChange);
@@ -152,40 +168,26 @@ export function Terminal({ tabId, visible, focused, onExit, onExitCode }: Props)
   }, [focused, tabId]);
 
   useEffect(() => {
-    if (!visible) return;
-
-    const sendResize = () => {
-      const fit = fitRef.current;
-      const term = termRef.current;
-      if (!fit || !term) return;
-      fit.fit();
-      invoke("pty_resize", { tabId, cols: term.cols, rows: term.rows }).catch(console.error);
-    };
-
-    let t1: ReturnType<typeof setTimeout>;
-    let t2: ReturnType<typeof setTimeout>;
-
-    const raf = requestAnimationFrame(() => {
-      sendResize();
-      if (focused) termRef.current?.focus();
-      t1 = setTimeout(sendResize, 100);
-      t2 = setTimeout(sendResize, 350);
-    });
-
+    if (!visible || settling) return;
+    scheduleRefit(0);
+    const t1 = setTimeout(refitTerminal, 100);
+    const t2 = setTimeout(refitTerminal, 300);
+    if (focused) {
+      requestAnimationFrame(() => termRef.current?.focus());
+    }
     return () => {
-      cancelAnimationFrame(raf);
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [visible, focused, tabId]);
+  }, [visible, focused, settling, tabId]);
 
   return (
     <div
       ref={containerRef}
       className="terminal-host"
       style={{
-        visibility: visible ? "visible" : "hidden",
-        pointerEvents: focused ? "auto" : "none",
+        visibility: visible && !settling ? "visible" : "hidden",
+        pointerEvents: focused && !settling ? "auto" : "none",
       }}
     />
   );

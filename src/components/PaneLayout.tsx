@@ -48,6 +48,8 @@ export function PaneLayout({
   const paneRefCallbacks = useRef(new Map<string, (el: HTMLDivElement | null) => void>());
   const [paneRects, setPaneRects] = useState<Record<string, PaneRect>>({});
   const [areaVersion, bumpAreas] = useReducer((n: number) => n + 1, 0);
+  const [isResizing, setIsResizing] = useState(false);
+  const layoutNotifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getPaneAreaRef = useCallback((paneId: string) => {
     let cb = paneRefCallbacks.current.get(paneId);
@@ -63,6 +65,13 @@ export function PaneLayout({
   }, []);
 
   const paneIdsKey = panes.map((p) => p.id).join(",");
+
+  function notifyLayoutSettled() {
+    if (layoutNotifyTimer.current) clearTimeout(layoutNotifyTimer.current);
+    layoutNotifyTimer.current = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("branchterm:pane-layout-changed"));
+    }, 80);
+  }
 
   useLayoutEffect(() => {
     const layout = layoutRef.current;
@@ -90,6 +99,7 @@ export function PaneLayout({
         if (!changed && Object.keys(prev).length === Object.keys(next).length) {
           return prev;
         }
+        if (!isResizing) notifyLayoutSettled();
         return next;
       });
     }
@@ -112,8 +122,9 @@ export function PaneLayout({
       observers.forEach((ro) => ro.disconnect());
       layoutRo.disconnect();
       window.removeEventListener("resize", measure);
+      if (layoutNotifyTimer.current) clearTimeout(layoutNotifyTimer.current);
     };
-  }, [paneIdsKey, panes, areaVersion]);
+  }, [paneIdsKey, panes, areaVersion, isResizing]);
 
   function ownerPaneId(tabId: string): string | null {
     return panes.find((p) => p.activeTabId === tabId)?.id ?? null;
@@ -126,10 +137,10 @@ export function PaneLayout({
       <Group
         orientation="horizontal"
         className="pane-panel-group"
+        onLayoutChange={() => setIsResizing(true)}
         onLayoutChanged={() => {
-          requestAnimationFrame(() => {
-            window.dispatchEvent(new CustomEvent("branchterm:pane-layout-changed"));
-          });
+          setIsResizing(false);
+          notifyLayoutSettled();
         }}
       >
         {panes.flatMap((pane, i) => [
@@ -191,6 +202,7 @@ export function PaneLayout({
                 tabId={tab.id}
                 visible={ownerId !== null}
                 focused={ownerId === focusedPaneId}
+                settling={isResizing && ownerId !== null}
                 onExit={() => onExit(tab.id)}
                 onExitCode={(code) => onExitCode(tab.id, code)}
               />

@@ -22,6 +22,7 @@ interface AppState {
 
 interface Props {
   activeTabId: string | null;
+  selectedTabId: string | null;
   paneTabIds: string[];
   termStates: Record<string, TermState>;
   onSelectTab: (tabId: string) => void;
@@ -39,6 +40,8 @@ interface Props {
 function TabRow({
   tab,
   active,
+  selected,
+  visibleInPane,
   canClose,
   termState,
   inAnyPane,
@@ -49,6 +52,8 @@ function TabRow({
 }: {
   tab: TabEntry;
   active: boolean;
+  selected: boolean;
+  visibleInPane: boolean;
   canClose: boolean;
   termState: TermState;
   inAnyPane: boolean;
@@ -60,10 +65,18 @@ function TabRow({
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const showDot = termState !== "shell";
   const showRun = !!tab.startupCommand;
+  const rowClass = [
+    "tab-row",
+    active ? "active" : "",
+    selected ? "selected" : "",
+    visibleInPane && !active ? "visible-in-pane" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
-      className={`tab-row ${active ? "active" : ""}`}
+      className={rowClass}
       onClick={onSelect}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -118,6 +131,7 @@ function BranchSection({
   label,
   tabs,
   activeTabId,
+  selectedTabId,
   paneTabIds,
   termStates,
   onSelectTab,
@@ -131,6 +145,7 @@ function BranchSection({
   label: React.ReactNode;
   tabs: TabEntry[];
   activeTabId: string | null;
+  selectedTabId: string | null;
   paneTabIds: string[];
   termStates: Record<string, TermState>;
   onSelectTab: (tabId: string) => void;
@@ -187,6 +202,8 @@ function BranchSection({
           key={tab.id}
           tab={tab}
           active={activeTabId === tab.id}
+          selected={selectedTabId === tab.id}
+          visibleInPane={paneTabIds.includes(tab.id)}
           canClose={tabs.length > 1}
           termState={termStates[tab.id] ?? "shell"}
           inAnyPane={paneTabIds.includes(tab.id)}
@@ -340,6 +357,7 @@ function CommandsSection() {
 
 export function Sidebar({
   activeTabId,
+  selectedTabId,
   paneTabIds,
   termStates,
   onSelectTab,
@@ -464,6 +482,7 @@ export function Sidebar({
           label={<>⌂ {currentBranch} <span style={{ color: "var(--accent)", fontWeight: 400, opacity: 0.75 }}>· {appState.projectPath.split("/").pop() || appState.projectPath}</span></>}
           tabs={appState.mainTabs}
           activeTabId={activeTabId}
+          selectedTabId={selectedTabId}
           paneTabIds={paneTabIds}
           termStates={termStates}
           onSelectTab={onSelectTab}
@@ -480,6 +499,7 @@ export function Sidebar({
             label={b.name}
             tabs={b.tabs}
             activeTabId={activeTabId}
+            selectedTabId={selectedTabId}
             paneTabIds={paneTabIds}
             termStates={termStates}
             onSelectTab={onSelectTab}

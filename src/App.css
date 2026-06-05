@@ -178,6 +178,24 @@ html, body, #root {
   border-left-color: var(--accent);
 }
 
+.tab-row.visible-in-pane {
+  background: rgba(45, 45, 45, 0.6);
+}
+
+.tab-row.visible-in-pane .tab-row-title {
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.tab-row.selected {
+  background: var(--bg-panel);
+  border-left-color: var(--text-dim);
+}
+
+.tab-row.selected .tab-row-title {
+  color: var(--text);
+}
+
 .tab-row-title {
   flex: 1;
   font-size: 12px;

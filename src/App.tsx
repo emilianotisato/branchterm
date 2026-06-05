@@ -28,6 +28,7 @@ export default function App() {
 
   const [allTabs, setAllTabsState] = useState<TabEntry[]>([]);
   const allTabsRef = useRef<TabEntry[]>([]);
+  const [selectedTabId, setSelectedTabId] = useState<string | null>(null);
 
   function setPanes(panes: Pane[]) {
     panesRef.current = panes;
@@ -59,17 +60,30 @@ export default function App() {
         p.id === focusedPaneIdRef.current ? { ...p, activeTabId: id } : p
       )
     );
+    setSelectedTabId(null);
     touchTabRecency(id);
+  }
+
+  function isMultiPane(): boolean {
+    return panesRef.current.length > 1;
   }
 
   function handleSelectTab(tabId: string) {
     const paneWithTab = panesRef.current.find((p) => p.activeTabId === tabId);
     if (paneWithTab) {
       setFocusedPaneId(paneWithTab.id);
+      setSelectedTabId(null);
       touchTabRecency(tabId);
       return;
     }
-    activateTab(tabId);
+    // Single pane: show tab in the only pane. Split: select only — use "Open in new pane".
+    if (!isMultiPane()) {
+      activateTab(tabId);
+      setSelectedTabId(null);
+    } else {
+      setSelectedTabId(tabId);
+    }
+    touchTabRecency(tabId);
   }
 
   function handleOpenInNewPane(tabId: string) {
@@ -77,6 +91,7 @@ export default function App() {
     const newPane: Pane = { id: crypto.randomUUID(), activeTabId: tabId };
     setPanes([...panesRef.current, newPane]);
     setFocusedPaneId(newPane.id);
+    setSelectedTabId(null);
     touchTabRecency(tabId);
   }
 
@@ -102,6 +117,23 @@ export default function App() {
 
   // Reads from refs — safe to capture in xterm or window event handlers (never stale)
   function handleSwitchTab(dir: "next" | "prev") {
+    if (isMultiPane()) {
+      const panesWithTabs = panesRef.current.filter((p) => p.activeTabId);
+      if (panesWithTabs.length <= 1) return;
+      const focusedIdx = panesWithTabs.findIndex(
+        (p) => p.id === focusedPaneIdRef.current
+      );
+      const currentIdx = focusedIdx === -1 ? 0 : focusedIdx;
+      const nextIdx =
+        dir === "next"
+          ? (currentIdx + 1) % panesWithTabs.length
+          : (currentIdx - 1 + panesWithTabs.length) % panesWithTabs.length;
+      const nextPane = panesWithTabs[nextIdx];
+      setFocusedPaneId(nextPane.id);
+      if (nextPane.activeTabId) touchTabRecency(nextPane.activeTabId);
+      return;
+    }
+
     const tabs = allTabsRef.current;
     const currentId = getFocusedActiveTabId();
     if (!currentId || tabs.length <= 1) return;
@@ -286,6 +318,7 @@ export default function App() {
     <div className="app">
       <Sidebar
         activeTabId={activeTabId}
+        selectedTabId={selectedTabId}
         paneTabIds={paneTabIds}
         termStates={termStates}
         onSelectTab={handleSelectTab}
@@ -332,7 +365,7 @@ export default function App() {
           allTabs={allTabs}
           tabRecency={tabRecency}
           tabBranch={tabBranch}
-          currentTabId={activeTabId}
+          currentTabId={activeTabId ?? selectedTabId}
           onSelect={(tabId) => {
             handleSelectTab(tabId);
             setCommandPaletteOpen(false);
