@@ -411,6 +411,64 @@ export default function App() {
     );
   }
 
+  function handleClosePane(paneId: string) {
+    const currentPanedView = getActivePanedView();
+    if (!currentPanedView || currentPanedView.panes.length <= 1) return;
+
+    const remainingPanes = currentPanedView.panes.filter(
+      (pane) => pane.id !== paneId
+    );
+
+    if (remainingPanes.length < 2) {
+      const remainingTabId = remainingPanes[0]?.activeTabId ?? null;
+      setPanedViews(
+        panedViewsRef.current.filter((view) => view.id !== currentPanedView.id)
+      );
+      setActiveView({ type: "single", tabId: remainingTabId });
+      return;
+    }
+
+    const focusedPaneId =
+      currentPanedView.focusedPaneId === paneId
+        ? remainingPanes[0].id
+        : currentPanedView.focusedPaneId;
+
+    setPanedViews(
+      panedViewsRef.current.map((view) =>
+        view.id === currentPanedView.id
+          ? {
+              ...view,
+              panes: remainingPanes,
+              focusedPaneId,
+              layout: undefined,
+            }
+          : view
+      )
+    );
+  }
+
+  function handleMovePane(paneId: string, direction: "left" | "right") {
+    const currentPanedView = getActivePanedView();
+    if (!currentPanedView) return;
+
+    const idx = currentPanedView.panes.findIndex((pane) => pane.id === paneId);
+    if (idx === -1) return;
+    const swapIdx = direction === "left" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= currentPanedView.panes.length) return;
+
+    const nextPanes = [...currentPanedView.panes];
+    [nextPanes[idx], nextPanes[swapIdx]] = [
+      nextPanes[swapIdx],
+      nextPanes[idx],
+    ];
+
+    setPanedViews(
+      panedViewsRef.current.map((view) =>
+        view.id === currentPanedView.id ? { ...view, panes: nextPanes } : view
+      )
+    );
+  }
+
   // Unique branch names derived from tabBranch, __main__ first
   const availableBranches = [
     "__main__",
@@ -440,9 +498,13 @@ export default function App() {
         panes={panes}
         focusedPaneId={focusedPaneId}
         layout={activePanedView?.layout}
+        panedViewActive={activeView.type === "paned"}
         allTabs={allTabs}
         tabBranch={tabBranch}
         onFocusPane={handleFocusPane}
+        onClosePane={handleClosePane}
+        onMovePaneLeft={(paneId) => handleMovePane(paneId, "left")}
+        onMovePaneRight={(paneId) => handleMovePane(paneId, "right")}
         onLayoutChanged={handlePanedLayoutChanged}
         onExit={(tabId) => handleTermEvent(tabId, "exit")}
         onExitCode={(tabId, code) => handleTermEvent(tabId, { exitCode: code })}

@@ -23,9 +23,13 @@ interface Props {
   panes: PaneState[];
   focusedPaneId: string | null;
   layout?: Record<string, number>;
+  panedViewActive: boolean;
   allTabs: TabEntry[];
   tabBranch: Record<string, string>;
   onFocusPane: (paneId: string) => void;
+  onClosePane: (paneId: string) => void;
+  onMovePaneLeft: (paneId: string) => void;
+  onMovePaneRight: (paneId: string) => void;
   onLayoutChanged: (layout: Record<string, number>) => void;
   onExit: (tabId: string) => void;
   onExitCode: (tabId: string, code: number) => void;
@@ -40,9 +44,13 @@ export function PaneLayout({
   panes,
   focusedPaneId,
   layout,
+  panedViewActive,
   allTabs,
   tabBranch,
   onFocusPane,
+  onClosePane,
+  onMovePaneLeft,
+  onMovePaneRight,
   onLayoutChanged,
   onExit,
   onExitCode,
@@ -171,7 +179,13 @@ export function PaneLayout({
               focused={pane.id === focusedPaneId}
               allTabs={allTabs}
               tabBranch={tabBranch}
+              canClose={panedViewActive && panes.length > 1}
+              canMoveLeft={panedViewActive && i > 0}
+              canMoveRight={panedViewActive && i < panes.length - 1}
               onFocus={() => onFocusPane(pane.id)}
+              onClosePane={() => onClosePane(pane.id)}
+              onMoveLeft={() => onMovePaneLeft(pane.id)}
+              onMoveRight={() => onMovePaneRight(pane.id)}
               terminalAreaRef={getPaneAreaRef(pane.id)}
             />
           </Panel>,
