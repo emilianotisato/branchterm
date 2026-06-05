@@ -28,7 +28,6 @@ pub fn run(project_path: PathBuf) {
 
     let ctx = context::AppContext::new(project_path, slug, app_state);
     let pty_map = pty::new_pty_map();
-    let pty_map_for_window_close = pty_map.clone();
     let pty_map_for_exit = pty_map.clone();
 
     let app = tauri::Builder::default()
@@ -36,11 +35,6 @@ pub fn run(project_path: PathBuf) {
         .manage(ctx)
         .manage(pty_map)
         .setup(|_app| Ok(()))
-        .on_window_event(move |_window, event| {
-            if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-                pty::kill_all_pty(&pty_map_for_window_close);
-            }
-        })
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::new_branch,
@@ -59,6 +53,7 @@ pub fn run(project_path: PathBuf) {
             commands::get_project_branches,
             commands::merge_branch,
             commands::get_current_branch,
+            commands::exit_app,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

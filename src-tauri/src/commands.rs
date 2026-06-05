@@ -314,6 +314,12 @@ pub async fn get_current_branch(ctx: State<'_, AppContext>) -> Result<String, St
 }
 
 #[tauri::command]
+pub fn exit_app(app: tauri::AppHandle, pty_map: State<'_, PtyMap>) {
+    pty::kill_all_pty(&pty_map);
+    app.exit(0);
+}
+
+#[tauri::command]
 pub async fn merge_branch(
     branch: String,
     target_branch: String,

@@ -566,6 +566,18 @@ html, body, #root {
   gap: 8px;
 }
 
+.exit-confirm-modal {
+  width: 360px;
+  max-width: calc(100vw - 32px);
+}
+
+.exit-confirm-message {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
 .modal-hint {
   font-size: 11px;
   color: var(--text-dim);

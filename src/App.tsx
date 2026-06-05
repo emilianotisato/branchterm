@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar, AppState } from "./components/Sidebar";
 import { PaneLayout } from "./components/PaneLayout";
 import { TabEntry } from "./components/MainArea";
@@ -7,6 +8,7 @@ import { Scratchpad } from "./components/Scratchpad";
 import { CommandPalette } from "./components/CommandPalette";
 import { BranchPicker } from "./components/BranchPicker";
 import { ShortcutsModal } from "./components/ShortcutsModal";
+import { ExitConfirmModal } from "./components/ExitConfirmModal";
 import { ActiveView, Pane, PanedView, TermState } from "./types";
 import "./App.css";
 
@@ -18,6 +20,7 @@ export default function App() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [branchPickerOpen, setBranchPickerOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   const [newTabBranch, setNewTabBranch] = useState<string | null>(null);
   const [tabRecency, setTabRecency] = useState<string[]>([]);
   const [tabBranch, setTabBranch] = useState<Record<string, string>>({});
@@ -167,6 +170,27 @@ export default function App() {
   function handleOpenScratchpad() {
     setScratchpadOpen(true);
     setScratchpadFocusCounter((c) => c + 1);
+  }
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    getCurrentWindow()
+      .onCloseRequested((event) => {
+        event.preventDefault();
+        setExitConfirmOpen(true);
+      })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(console.error);
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  function handleConfirmExit() {
+    setExitConfirmOpen(false);
+    invoke("exit_app").catch(console.error);
   }
 
   // Global Ctrl+Shift shortcuts — fires regardless of which element has DOM focus,
@@ -559,6 +583,13 @@ export default function App() {
 
       {shortcutsOpen && (
         <ShortcutsModal onClose={() => setShortcutsOpen(false)} />
+      )}
+
+      {exitConfirmOpen && (
+        <ExitConfirmModal
+          onConfirm={handleConfirmExit}
+          onCancel={() => setExitConfirmOpen(false)}
+        />
       )}
     </div>
   );
