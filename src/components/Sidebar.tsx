@@ -130,6 +130,7 @@ function TabRow({
 
 function BranchSection({
   label,
+  labelTitle,
   tabs,
   activeTabId,
   selectedTabId,
@@ -145,6 +146,7 @@ function BranchSection({
   onMergeBranch,
 }: {
   label: React.ReactNode;
+  labelTitle?: string;
   tabs: TabEntry[];
   activeTabId: string | null;
   selectedTabId: string | null;
@@ -171,7 +173,7 @@ function BranchSection({
       <div className="branch-section-header">
         <span
           className="branch-section-name"
-          title={typeof label === "string" ? label : undefined}
+          title={labelTitle ?? (typeof label === "string" ? label : undefined)}
           onContextMenu={(e) => {
             if (ctxItems.length === 0) return;
             e.preventDefault();
@@ -464,11 +466,14 @@ export function Sidebar({
 
   if (!appState) return <div className="sidebar"></div>;
 
+  const projectName = appState.projectPath.split("/").pop() || appState.projectPath;
+
   return (
     <div className="sidebar">
       <div className="branches-list">
         <BranchSection
-          label={<>⌂ {currentBranch} <span style={{ color: "var(--accent)", fontWeight: 400, opacity: 0.75 }}>· {appState.projectPath.split("/").pop() || appState.projectPath}</span></>}
+          label={<>⌂ {currentBranch} <span style={{ color: "var(--accent)", fontWeight: 400, opacity: 0.75 }}>· {projectName}</span></>}
+          labelTitle={`${currentBranch} · ${projectName}`}
           tabs={appState.mainTabs}
           activeTabId={activeTabId}
           selectedTabId={selectedTabId}
