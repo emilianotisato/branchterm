@@ -66,3 +66,15 @@ pub fn remove(id: &str) -> Result<(), String> {
     commands.retain(|c| c.id != id);
     save(&commands)
 }
+
+pub fn reorder(ids: &[String]) -> Result<(), String> {
+    let mut commands = load()?;
+    let mut ordered: Vec<FreqCommand> = Vec::with_capacity(commands.len());
+    for id in ids {
+        if let Some(pos) = commands.iter().position(|c| &c.id == id) {
+            ordered.push(commands.remove(pos));
+        }
+    }
+    ordered.extend(commands);
+    save(&ordered)
+}

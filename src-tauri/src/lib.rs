@@ -48,6 +48,8 @@ pub fn run(project_path: PathBuf) {
             commands::get_commands,
             commands::save_command,
             commands::delete_command,
+            commands::reorder_commands,
+            commands::save_pane_layout,
             commands::read_scratchpad,
             commands::write_scratchpad,
             commands::get_project_branches,

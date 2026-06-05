@@ -1,8 +1,25 @@
 import React, { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { NewTabModal, TabEntry } from "./NewTabModal";
 import { FreqCommand } from "./CommandPicker";
-import { TermState } from "../types";
+import { ActiveView, PanedView, TermState } from "../types";
 import { ContextMenu } from "./ContextMenu";
 import { MergeModal } from "./MergeModal";
 
@@ -18,6 +35,8 @@ interface AppState {
   projectPath: string;
   branches: BranchEntry[];
   mainTabs: TabEntry[];
+  panedViews?: PanedView[];
+  activeView?: ActiveView;
 }
 
 interface Props {
@@ -222,6 +241,48 @@ function BranchSection({
   );
 }
 
+function SortableCommandItem({
+  cmd,
+  onDelete,
+}: {
+  cmd: FreqCommand;
+  onDelete: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: cmd.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="cmd-item">
+      <span
+        className="cmd-drag-handle"
+        {...attributes}
+        {...listeners}
+        title="Drag to reorder"
+      >
+        ⠿
+      </span>
+      <div className="cmd-item-info">
+        <div className="cmd-item-label">{cmd.label}</div>
+        <code className="cmd-item-cmd">{cmd.cmd}</code>
+      </div>
+      <button
+        className="btn-icon"
+        style={{ opacity: 1 }}
+        title="Delete"
+        onClick={() => onDelete(cmd.id)}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function CommandsSection() {
   const [commands, setCommands] = useState<FreqCommand[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -253,6 +314,24 @@ function CommandsSection() {
   async function handleDelete(id: string) {
     await invoke("delete_command", { id });
     setCommands((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = commands.findIndex((c) => c.id === active.id);
+    const newIndex = commands.findIndex((c) => c.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const next = arrayMove(commands, oldIndex, newIndex);
+    setCommands(next);
+    await invoke("reorder_commands", { ids: next.map((c) => c.id) }).catch(console.error);
   }
 
   return (
@@ -323,22 +402,16 @@ function CommandsSection() {
               No commands yet
             </div>
           )}
-          {commands.map((c) => (
-            <div key={c.id} className="cmd-item">
-              <div className="cmd-item-info">
-                <div className="cmd-item-label">{c.label}</div>
-                <code className="cmd-item-cmd">{c.cmd}</code>
-              </div>
-              <button
-                className="btn-icon"
-                style={{ opacity: 1 }}
-                title="Delete"
-                onClick={() => handleDelete(c.id)}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext
+              items={commands.map((c) => c.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {commands.map((c) => (
+                <SortableCommandItem key={c.id} cmd={c} onDelete={handleDelete} />
+              ))}
+            </SortableContext>
+          </DndContext>
         </>
       )}
     </div>

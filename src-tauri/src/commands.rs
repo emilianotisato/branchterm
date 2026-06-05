@@ -304,6 +304,23 @@ pub async fn delete_command(id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn reorder_commands(ids: Vec<String>) -> Result<(), String> {
+    commands_store::reorder(&ids)
+}
+
+#[tauri::command]
+pub async fn save_pane_layout(
+    ctx: State<'_, AppContext>,
+    paned_views: Vec<state::PanedViewState>,
+    active_view: Option<state::ActiveViewState>,
+) -> Result<(), String> {
+    let mut s = ctx.state.lock().unwrap();
+    s.paned_views = paned_views;
+    s.active_view = active_view;
+    state::save_state(&ctx.slug, &s)
+}
+
+#[tauri::command]
 pub async fn get_project_branches(ctx: State<'_, AppContext>) -> Result<Vec<String>, String> {
     merge::get_branches(&ctx.project_path)
 }

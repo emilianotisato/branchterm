@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
@@ -39,11 +40,38 @@ pub struct BranchEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PaneState {
+    pub id: String,
+    pub active_tab_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PanedViewState {
+    pub id: String,
+    pub panes: Vec<PaneState>,
+    pub focused_pane_id: Option<String>,
+    pub layout: Option<HashMap<String, f64>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum ActiveViewState {
+    Single { tab_id: Option<String> },
+    Paned { view_id: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppState {
     pub project_path: String,
     pub branches: Vec<BranchEntry>,
     #[serde(default)]
     pub main_tabs: Vec<TabEntry>,
+    #[serde(default)]
+    pub paned_views: Vec<PanedViewState>,
+    #[serde(default)]
+    pub active_view: Option<ActiveViewState>,
 }
 
 // Used only for loading old-format JSON (has startupCommand per branch, no tabs)
@@ -67,6 +95,10 @@ struct RawAppState {
     branches: Vec<RawBranchEntry>,
     #[serde(default)]
     main_tabs: Vec<TabEntry>,
+    #[serde(default)]
+    paned_views: Vec<PanedViewState>,
+    #[serde(default)]
+    active_view: Option<ActiveViewState>,
 }
 
 fn default_shell_tab() -> TabEntry {
@@ -117,6 +149,8 @@ fn migrate(raw: RawAppState) -> AppState {
         project_path: raw.project_path,
         branches,
         main_tabs,
+        paned_views: raw.paned_views,
+        active_view: raw.active_view,
     }
 }
 
@@ -126,6 +160,8 @@ impl AppState {
             project_path: project_path.to_string_lossy().to_string(),
             branches: vec![],
             main_tabs: vec![default_shell_tab()],
+            paned_views: vec![],
+            active_view: None,
         }
     }
 }
@@ -205,6 +241,8 @@ mod tests {
                     autostart: false,
                 }],
             }],
+            paned_views: vec![],
+            active_view: None,
         };
         let json = serde_json::to_string(&state).unwrap();
         let parsed: AppState = serde_json::from_str(&json).unwrap();
@@ -265,6 +303,38 @@ mod tests {
         let state = migrate(raw);
         assert_eq!(state.branches[0].tabs[0].title, "Shell");
         assert!(state.branches[0].tabs[0].startup_command.is_none());
+    }
+
+    #[test]
+    fn load_preserves_pane_layout() {
+        let json = r#"{
+            "projectPath": "/home/user/proj",
+            "branches": [],
+            "mainTabs": [{
+                "id": "t1",
+                "title": "Shell",
+                "autostart": true
+            }],
+            "panedViews": [{
+                "id": "view-1",
+                "panes": [
+                    {"id": "p1", "activeTabId": "t1"},
+                    {"id": "p2", "activeTabId": "t2"}
+                ],
+                "focusedPaneId": "p2",
+                "layout": {"p1": 40, "p2": 60}
+            }],
+            "activeView": {"type": "paned", "viewId": "view-1"}
+        }"#;
+        let raw: RawAppState = serde_json::from_str(json).unwrap();
+        let state = migrate(raw);
+        assert_eq!(state.paned_views.len(), 1);
+        assert_eq!(state.paned_views[0].panes.len(), 2);
+        assert_eq!(state.paned_views[0].focused_pane_id.as_deref(), Some("p2"));
+        assert!(matches!(
+            state.active_view,
+            Some(ActiveViewState::Paned { view_id }) if view_id == "view-1"
+        ));
     }
 
     #[test]

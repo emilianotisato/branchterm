@@ -37,6 +37,8 @@ export default function App() {
   const [allTabs, setAllTabsState] = useState<TabEntry[]>([]);
   const allTabsRef = useRef<TabEntry[]>([]);
   const bootSpawnedRef = useRef(false);
+  const paneLayoutReadyRef = useRef(false);
+  const savePaneLayoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function setPanedViews(views: PanedView[]) {
     panedViewsRef.current = views;
@@ -227,6 +229,19 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!paneLayoutReadyRef.current) return;
+
+    if (savePaneLayoutRef.current) clearTimeout(savePaneLayoutRef.current);
+    savePaneLayoutRef.current = setTimeout(() => {
+      invoke("save_pane_layout", { panedViews, activeView }).catch(console.error);
+    }, 300);
+
+    return () => {
+      if (savePaneLayoutRef.current) clearTimeout(savePaneLayoutRef.current);
+    };
+  }, [panedViews, activeView]);
+
   function computeInitialState(tab: TabEntry): TermState {
     if (!tab.startupCommand) return "shell";
     return tab.autostart ? "running" : "idle";
@@ -267,8 +282,32 @@ export default function App() {
       }
     }
 
-    const firstTabId = state.mainTabs[0]?.id ?? null;
-    setActiveView({ type: "single", tabId: firstTabId });
+    const allTabIds = new Set(tabs.map((t) => t.id));
+    const restoredViews = (state.panedViews ?? [])
+      .map((view) => ({
+        ...view,
+        panes: view.panes.filter(
+          (pane) => !pane.activeTabId || allTabIds.has(pane.activeTabId)
+        ),
+      }))
+      .filter((view) => view.panes.length >= 2);
+
+    setPanedViews(restoredViews);
+
+    const av = state.activeView;
+    if (av?.type === "paned" && restoredViews.some((v) => v.id === av.viewId)) {
+      setActiveView(av);
+    } else if (av?.type === "single") {
+      const tabId =
+        av.tabId && allTabIds.has(av.tabId)
+          ? av.tabId
+          : state.mainTabs[0]?.id ?? null;
+      setActiveView({ type: "single", tabId });
+    } else {
+      setActiveView({ type: "single", tabId: state.mainTabs[0]?.id ?? null });
+    }
+
+    paneLayoutReadyRef.current = true;
   }
 
   function handleTabCreated(branch: string, tab: TabEntry) {

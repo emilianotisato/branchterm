@@ -45,5 +45,5 @@ branchterm .
 
 ```bash
 # Run dev build (always pass your project path)
-BRANCHTERM_PROJECT=/path/to/your/project npm run tauri dev
+BRANCHTERM_PROJECT=~/Projects/test-branchterm/ npm run tauri dev
 ```
