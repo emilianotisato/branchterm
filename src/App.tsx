@@ -117,34 +117,42 @@ export default function App() {
 
   // Reads from refs — safe to capture in xterm or window event handlers (never stale)
   function handleSwitchTab(dir: "next" | "prev") {
-    if (isMultiPane()) {
-      const panesWithTabs = panesRef.current.filter((p) => p.activeTabId);
-      if (panesWithTabs.length <= 1) return;
-      const focusedIdx = panesWithTabs.findIndex(
-        (p) => p.id === focusedPaneIdRef.current
-      );
-      const currentIdx = focusedIdx === -1 ? 0 : focusedIdx;
-      const nextIdx =
-        dir === "next"
-          ? (currentIdx + 1) % panesWithTabs.length
-          : (currentIdx - 1 + panesWithTabs.length) % panesWithTabs.length;
-      const nextPane = panesWithTabs[nextIdx];
-      setFocusedPaneId(nextPane.id);
-      if (nextPane.activeTabId) touchTabRecency(nextPane.activeTabId);
-      return;
-    }
-
     const tabs = allTabsRef.current;
     const currentId = getFocusedActiveTabId();
     if (!currentId || tabs.length <= 1) return;
-    const idx = tabs.findIndex((t) => t.id === currentId);
+
+    let idx = tabs.findIndex((t) => t.id === currentId);
     if (idx === -1) return;
-    const nextIdx =
-      dir === "next"
-        ? (idx + 1) % tabs.length
-        : (idx - 1 + tabs.length) % tabs.length;
-    activateTab(tabs[nextIdx].id);
+
+    for (let step = 0; step < tabs.length; step++) {
+      idx =
+        dir === "next"
+          ? (idx + 1) % tabs.length
+          : (idx - 1 + tabs.length) % tabs.length;
+      const candidate = tabs[idx];
+
+      const paneWithTab = panesRef.current.find(
+        (p) => p.activeTabId === candidate.id
+      );
+
+      if (paneWithTab) {
+        if (paneWithTab.id !== focusedPaneIdRef.current) {
+          setFocusedPaneId(paneWithTab.id);
+          touchTabRecency(candidate.id);
+        }
+        return;
+      }
+
+      // Multi-pane: skip unassigned tabs. Single-pane: show next tab.
+      if (!isMultiPane()) {
+        activateTab(candidate.id);
+        return;
+      }
+    }
   }
+
+  const handleSwitchTabRef = useRef(handleSwitchTab);
+  handleSwitchTabRef.current = handleSwitchTab;
 
   function handleOpenScratchpad() {
     setScratchpadOpen(true);
@@ -160,11 +168,11 @@ export default function App() {
       switch (e.code) {
         case "BracketRight":
           e.preventDefault();
-          handleSwitchTab("next");
+          handleSwitchTabRef.current("next");
           break;
         case "BracketLeft":
           e.preventDefault();
-          handleSwitchTab("prev");
+          handleSwitchTabRef.current("prev");
           break;
         case "KeyP":
           e.preventDefault();
