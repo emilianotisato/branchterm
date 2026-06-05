@@ -123,9 +123,9 @@ export function Terminal({ tabId, visible, focused, settling = false, onExit, on
       switch (e.code) {
         case "BracketRight":
         case "BracketLeft":
-        case "KeyP":
+        case "Backslash":
         case "KeyT":
-        case "KeyS":
+        case "KeyO":
           return false;
       }
       return true;

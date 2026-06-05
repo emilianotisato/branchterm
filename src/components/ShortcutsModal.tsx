@@ -1,9 +1,9 @@
 const SHORTCUTS = [
-  { keys: "Ctrl+Shift+P", action: "Command palette — switch terminal (Enter = previous)" },
+  { keys: "Ctrl+Shift+\\", action: "Command palette — switch terminal (Enter = previous)" },
   { keys: "Ctrl+Shift+]", action: "Next terminal tab" },
   { keys: "Ctrl+Shift+[", action: "Previous terminal tab" },
   { keys: "Ctrl+Shift+T", action: "New terminal — pick workspace" },
-  { keys: "Ctrl+Shift+S", action: "Open scratchpad, cursor at end" },
+  { keys: "Ctrl+Shift+O", action: "Open scratchpad, cursor at end" },
 ];
 
 interface Props {

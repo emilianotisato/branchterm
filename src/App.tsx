@@ -184,7 +184,7 @@ export default function App() {
           e.preventDefault();
           handleSwitchTabRef.current("prev");
           break;
-        case "KeyP":
+        case "Backslash":
           e.preventDefault();
           setCommandPaletteOpen(true);
           break;
@@ -192,7 +192,7 @@ export default function App() {
           e.preventDefault();
           setBranchPickerOpen(true);
           break;
-        case "KeyS":
+        case "KeyO":
           e.preventDefault();
           handleOpenScratchpad();
           break;
