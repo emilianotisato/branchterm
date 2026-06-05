@@ -22,9 +22,11 @@ interface PaneRect {
 interface Props {
   panes: PaneState[];
   focusedPaneId: string | null;
+  layout?: Record<string, number>;
   allTabs: TabEntry[];
   tabBranch: Record<string, string>;
   onFocusPane: (paneId: string) => void;
+  onLayoutChanged: (layout: Record<string, number>) => void;
   onExit: (tabId: string) => void;
   onExitCode: (tabId: string, code: number) => void;
 }
@@ -37,9 +39,11 @@ function rectsEqual(a: PaneRect | undefined, b: PaneRect): boolean {
 export function PaneLayout({
   panes,
   focusedPaneId,
+  layout,
   allTabs,
   tabBranch,
   onFocusPane,
+  onLayoutChanged,
   onExit,
   onExitCode,
 }: Props) {
@@ -135,11 +139,14 @@ export function PaneLayout({
   return (
     <div className="pane-layout" ref={layoutRef}>
       <Group
+        key={paneIdsKey}
         orientation="horizontal"
         className="pane-panel-group"
+        defaultLayout={layout}
         onLayoutChange={() => setIsResizing(true)}
-        onLayoutChanged={() => {
+        onLayoutChanged={(nextLayout) => {
           setIsResizing(false);
+          onLayoutChanged(nextLayout);
           notifyLayoutSettled();
         }}
       >

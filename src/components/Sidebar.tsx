@@ -23,7 +23,8 @@ interface AppState {
 interface Props {
   activeTabId: string | null;
   selectedTabId: string | null;
-  paneTabIds: string[];
+  visiblePaneTabIds: string[];
+  panedViewTabIds: string[];
   termStates: Record<string, TermState>;
   onSelectTab: (tabId: string) => void;
   onOpenInNewPane: (tabId: string) => void;
@@ -132,7 +133,8 @@ function BranchSection({
   tabs,
   activeTabId,
   selectedTabId,
-  paneTabIds,
+  visiblePaneTabIds,
+  panedViewTabIds,
   termStates,
   onSelectTab,
   onOpenInNewPane,
@@ -146,7 +148,8 @@ function BranchSection({
   tabs: TabEntry[];
   activeTabId: string | null;
   selectedTabId: string | null;
-  paneTabIds: string[];
+  visiblePaneTabIds: string[];
+  panedViewTabIds: string[];
   termStates: Record<string, TermState>;
   onSelectTab: (tabId: string) => void;
   onOpenInNewPane: (tabId: string) => void;
@@ -203,10 +206,10 @@ function BranchSection({
           tab={tab}
           active={activeTabId === tab.id}
           selected={selectedTabId === tab.id}
-          visibleInPane={paneTabIds.includes(tab.id)}
+          visibleInPane={visiblePaneTabIds.includes(tab.id)}
           canClose={tabs.length > 1}
           termState={termStates[tab.id] ?? "shell"}
-          inAnyPane={paneTabIds.includes(tab.id)}
+          inAnyPane={panedViewTabIds.includes(tab.id)}
           onSelect={() => onSelectTab(tab.id)}
           onOpenInNewPane={onOpenInNewPane}
           onClose={() => onCloseTab(tab.id)}
@@ -358,7 +361,8 @@ function CommandsSection() {
 export function Sidebar({
   activeTabId,
   selectedTabId,
-  paneTabIds,
+  visiblePaneTabIds,
+  panedViewTabIds,
   termStates,
   onSelectTab,
   onOpenInNewPane,
@@ -483,7 +487,8 @@ export function Sidebar({
           tabs={appState.mainTabs}
           activeTabId={activeTabId}
           selectedTabId={selectedTabId}
-          paneTabIds={paneTabIds}
+          visiblePaneTabIds={visiblePaneTabIds}
+          panedViewTabIds={panedViewTabIds}
           termStates={termStates}
           onSelectTab={onSelectTab}
           onOpenInNewPane={onOpenInNewPane}
@@ -500,7 +505,8 @@ export function Sidebar({
             tabs={b.tabs}
             activeTabId={activeTabId}
             selectedTabId={selectedTabId}
-            paneTabIds={paneTabIds}
+            visiblePaneTabIds={visiblePaneTabIds}
+            panedViewTabIds={panedViewTabIds}
             termStates={termStates}
             onSelectTab={onSelectTab}
             onOpenInNewPane={onOpenInNewPane}
