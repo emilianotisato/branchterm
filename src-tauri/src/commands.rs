@@ -37,7 +37,12 @@ pub async fn get_state(ctx: State<'_, AppContext>) -> Result<AppState, String> {
 }
 
 #[tauri::command]
-pub async fn new_branch(name: String, ctx: State<'_, AppContext>) -> Result<BranchInfo, String> {
+pub async fn new_branch(
+    name: String,
+    app_handle: tauri::AppHandle,
+    ctx: State<'_, AppContext>,
+    pty_map: State<'_, PtyMap>,
+) -> Result<BranchInfo, String> {
     let info = workspace::create_workspace(&ctx.project_path, &name, &ctx.slug)?;
 
     let default_tab = TabEntry {
@@ -48,11 +53,11 @@ pub async fn new_branch(name: String, ctx: State<'_, AppContext>) -> Result<Bran
     };
 
     let entry = BranchEntry {
-        name: name.clone(),
+        name: info.name.clone(),
         parent_branch: info.parent_branch.clone(),
         workspace_path: info.workspace_path.to_string_lossy().to_string(),
         created_at: iso8601_now(),
-        tabs: vec![default_tab],
+        tabs: vec![default_tab.clone()],
     };
 
     let branch_info = BranchInfo::from(&entry);
@@ -62,6 +67,15 @@ pub async fn new_branch(name: String, ctx: State<'_, AppContext>) -> Result<Bran
         s.branches.push(entry);
         state::save_state(&ctx.slug, &s)?;
     }
+
+    pty::spawn_pty(
+        default_tab.id,
+        &info.workspace_path,
+        None,
+        true,
+        app_handle,
+        &pty_map,
+    )?;
 
     Ok(branch_info)
 }

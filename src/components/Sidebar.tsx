@@ -393,7 +393,7 @@ export function Sidebar({
       const s = await invoke<AppState>("get_state");
       setAppState(s);
       if (info.tabs.length > 0) {
-        onTabCreated(name, info.tabs[0]);
+        onTabCreated(info.name, info.tabs[0]);
       }
       setNewName("");
       setCreating(false);
@@ -522,7 +522,7 @@ export function Sidebar({
           <div className="new-branch-form">
             <input
               type="text"
-              placeholder="branch-name"
+              placeholder="branch name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {

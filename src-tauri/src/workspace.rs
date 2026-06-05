@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::boot;
+
 pub struct WorkspaceInfo {
     pub name: String,
     pub parent_branch: String,
@@ -40,12 +42,21 @@ fn is_git_repo(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn normalize_branch_name(raw: &str) -> Result<String, String> {
+    let name = boot::slugify_name(raw.trim());
+    if name.is_empty() {
+        return Err("Branch name cannot be empty".to_string());
+    }
+    validate_branch_name(&name)?;
+    Ok(name)
+}
+
 pub fn create_workspace(
     project_path: &Path,
-    branch_name: &str,
+    raw_branch_name: &str,
     slug: &str,
 ) -> Result<WorkspaceInfo, String> {
-    validate_branch_name(branch_name)?;
+    let branch_name = normalize_branch_name(raw_branch_name)?;
 
     if !is_git_repo(project_path) {
         return Err(format!(
@@ -55,7 +66,7 @@ pub fn create_workspace(
     }
 
     let parent_branch = current_git_branch(project_path)?;
-    let workspace_path = workspaces_dir(slug, branch_name);
+    let workspace_path = workspaces_dir(slug, &branch_name);
 
     if workspace_path.exists() {
         return Err(format!(
@@ -95,7 +106,7 @@ pub fn create_workspace(
             &workspace_path.to_string_lossy(),
             "checkout",
             "-b",
-            branch_name,
+            &branch_name,
         ])
         .output()
         .map_err(|e| format!("Failed to run git checkout -b: {e}"))?;
@@ -110,7 +121,7 @@ pub fn create_workspace(
     }
 
     Ok(WorkspaceInfo {
-        name: branch_name.to_string(),
+        name: branch_name,
         parent_branch,
         workspace_path,
     })
@@ -127,9 +138,6 @@ pub fn delete_workspace(workspace_path: &Path) -> Result<(), String> {
 fn validate_branch_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("Branch name cannot be empty".to_string());
-    }
-    if name.contains(' ') || name.contains('\t') {
-        return Err("Branch name cannot contain spaces".to_string());
     }
     if name.contains("..") || name.starts_with('-') || name.ends_with('/') || name.ends_with(".lock") {
         return Err(format!("Invalid git branch name: '{name}'"));

@@ -44,6 +44,12 @@ pub fn check_btrfs(project_path: &Path) -> Result<(), BootError> {
     Ok(())
 }
 
+/// Converts arbitrary user text to a safe slug (e.g. branch names).
+/// "my feature" → "my_feature"
+pub fn slugify_name(name: &str) -> String {
+    slugify(Path::new(name))
+}
+
 /// Converts an absolute path to a safe filesystem slug.
 /// /home/user/my project → home_user_my_project
 pub fn slugify(path: &Path) -> String {
@@ -92,6 +98,12 @@ mod tests {
             slugify(&PathBuf::from("/home/user/my project")),
             "home_user_my_project"
         );
+    }
+
+    #[test]
+    fn slugify_name_from_user_input() {
+        assert_eq!(slugify_name("my feature"), "my_feature");
+        assert_eq!(slugify_name("  fix bug #42  "), "fix_bug_42");
     }
 
     #[test]
