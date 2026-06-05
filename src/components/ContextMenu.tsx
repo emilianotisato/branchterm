@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 export interface ContextMenuItem {
   label: string;
   danger?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }
 
@@ -40,8 +41,12 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
       {items.map((item) => (
         <div
           key={item.label}
-          className={`context-menu-item${item.danger ? " danger" : ""}`}
-          onClick={() => { item.onClick(); onClose(); }}
+          className={`context-menu-item${item.danger ? " danger" : ""}${item.disabled ? " disabled" : ""}`}
+          onClick={() => {
+            if (item.disabled) return;
+            item.onClick();
+            onClose();
+          }}
         >
           {item.label}
         </div>

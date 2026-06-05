@@ -92,6 +92,16 @@ html, body, #root {
   color: var(--danger);
 }
 
+.context-menu-item.disabled {
+  color: var(--text-dim);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.context-menu-item.disabled:hover {
+  background: transparent;
+}
+
 /* Merge modal specifics */
 .merge-error-msg {
   font-size: 12px;
@@ -281,10 +291,58 @@ html, body, #root {
 .pane-layout {
   flex: 1;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   overflow: hidden;
   background: var(--bg);
   padding-left: 4px;
+  min-width: 0;
+  position: relative;
+}
+
+.pane-panel-group {
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Library sets overflow:visible on panels — clip terminal bleed */
+.pane-panel-group [data-panel] {
+  overflow: hidden !important;
+}
+
+.pane-panel {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.pane-resize-handle {
+  position: relative;
+  flex: 0 0 9px;
+  width: 9px;
+  background: transparent;
+  cursor: col-resize;
+}
+
+.pane-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  background: var(--border);
+  transition: background 0.15s;
+  pointer-events: none;
+}
+
+.pane-resize-handle:hover::after,
+.pane-resize-handle:active::after,
+.pane-resize-handle:focus-visible::after {
+  background: var(--accent);
 }
 
 .pane {
@@ -293,6 +351,24 @@ html, body, #root {
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  padding: 0 4px;
+  box-sizing: border-box;
+}
+
+.terminal-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.terminal-slot {
+  position: absolute;
+  overflow: hidden;
 }
 
 .pane-header {
@@ -320,9 +396,20 @@ html, body, #root {
 }
 
 .pane-terminal-area {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-host {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .placeholder {

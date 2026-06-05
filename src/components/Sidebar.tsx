@@ -22,8 +22,10 @@ interface AppState {
 
 interface Props {
   activeTabId: string | null;
+  paneTabIds: string[];
   termStates: Record<string, TermState>;
   onSelectTab: (tabId: string) => void;
+  onOpenInNewPane: (tabId: string) => void;
   onStateLoaded: (state: AppState) => void;
   onTabCreated: (branch: string, tab: TabEntry) => void;
   onTabClosed: (branch: string, tabId: string) => void;
@@ -39,18 +41,23 @@ function TabRow({
   active,
   canClose,
   termState,
+  inAnyPane,
   onSelect,
   onClose,
   onRun,
+  onOpenInNewPane,
 }: {
   tab: TabEntry;
   active: boolean;
   canClose: boolean;
   termState: TermState;
+  inAnyPane: boolean;
   onSelect: () => void;
   onClose: () => void;
   onRun: () => void;
+  onOpenInNewPane: (tabId: string) => void;
 }) {
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const showDot = termState !== "shell";
   const showRun = !!tab.startupCommand;
 
@@ -58,6 +65,10 @@ function TabRow({
     <div
       className={`tab-row ${active ? "active" : ""}`}
       onClick={onSelect}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setCtxMenu({ x: e.clientX, y: e.clientY });
+      }}
     >
       {showDot && <span className={`tab-dot tab-dot-${termState}`}>●</span>}
       <span className="tab-row-title">{tab.title}</span>
@@ -85,6 +96,20 @@ function TabRow({
           ✕
         </button>
       )}
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={[
+            {
+              label: "Open in new pane",
+              disabled: inAnyPane,
+              onClick: () => onOpenInNewPane(tab.id),
+            },
+          ]}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
     </div>
   );
 }
@@ -93,8 +118,10 @@ function BranchSection({
   label,
   tabs,
   activeTabId,
+  paneTabIds,
   termStates,
   onSelectTab,
+  onOpenInNewPane,
   onAddTab,
   onCloseTab,
   onRunTab,
@@ -104,8 +131,10 @@ function BranchSection({
   label: React.ReactNode;
   tabs: TabEntry[];
   activeTabId: string | null;
+  paneTabIds: string[];
   termStates: Record<string, TermState>;
   onSelectTab: (tabId: string) => void;
+  onOpenInNewPane: (tabId: string) => void;
   onAddTab: () => void;
   onCloseTab: (tabId: string) => void;
   onRunTab: (tabId: string) => void;
@@ -160,7 +189,9 @@ function BranchSection({
           active={activeTabId === tab.id}
           canClose={tabs.length > 1}
           termState={termStates[tab.id] ?? "shell"}
+          inAnyPane={paneTabIds.includes(tab.id)}
           onSelect={() => onSelectTab(tab.id)}
+          onOpenInNewPane={onOpenInNewPane}
           onClose={() => onCloseTab(tab.id)}
           onRun={() => onRunTab(tab.id)}
         />
@@ -309,8 +340,10 @@ function CommandsSection() {
 
 export function Sidebar({
   activeTabId,
+  paneTabIds,
   termStates,
   onSelectTab,
+  onOpenInNewPane,
   onStateLoaded,
   onTabCreated,
   onTabClosed,
@@ -431,8 +464,10 @@ export function Sidebar({
           label={<>⌂ {currentBranch} <span style={{ color: "var(--accent)", fontWeight: 400, opacity: 0.75 }}>· {appState.projectPath.split("/").pop() || appState.projectPath}</span></>}
           tabs={appState.mainTabs}
           activeTabId={activeTabId}
+          paneTabIds={paneTabIds}
           termStates={termStates}
           onSelectTab={onSelectTab}
+          onOpenInNewPane={onOpenInNewPane}
           onAddTab={() => setModalBranch("__main__")}
           onCloseTab={(tabId) => handleCloseTab("__main__", tabId)}
           onRunTab={handleRunTab}
@@ -445,8 +480,10 @@ export function Sidebar({
             label={b.name}
             tabs={b.tabs}
             activeTabId={activeTabId}
+            paneTabIds={paneTabIds}
             termStates={termStates}
             onSelectTab={onSelectTab}
+            onOpenInNewPane={onOpenInNewPane}
             onAddTab={() => setModalBranch(b.name)}
             onCloseTab={(tabId) => handleCloseTab(b.name, tabId)}
             onRunTab={handleRunTab}

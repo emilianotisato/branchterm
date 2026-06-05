@@ -1,4 +1,3 @@
-import { Terminal } from "./Terminal";
 import type { Pane as PaneState } from "../types";
 import type { TabEntry } from "./MainArea";
 
@@ -12,8 +11,7 @@ interface Props {
   allTabs: TabEntry[];
   tabBranch: Record<string, string>;
   onFocus: () => void;
-  onExit: (tabId: string) => void;
-  onExitCode: (tabId: string, code: number) => void;
+  terminalAreaRef: (el: HTMLDivElement | null) => void;
 }
 
 export function Pane({
@@ -22,8 +20,7 @@ export function Pane({
   allTabs,
   tabBranch,
   onFocus,
-  onExit,
-  onExitCode,
+  terminalAreaRef,
 }: Props) {
   const activeTab = allTabs.find((t) => t.id === pane.activeTabId);
   const branch = pane.activeTabId ? tabBranch[pane.activeTabId] : undefined;
@@ -37,19 +34,9 @@ export function Pane({
       <div className={`pane-header ${focused ? "pane-header-focused" : ""}`}>
         <span className="pane-header-title">{headerLabel}</span>
       </div>
-      <div className="pane-terminal-area">
-        {allTabs.length === 0 ? (
+      <div className="pane-terminal-area" ref={terminalAreaRef}>
+        {!pane.activeTabId && (
           <div className="placeholder">Select a terminal in the sidebar</div>
-        ) : (
-          allTabs.map((tab) => (
-            <Terminal
-              key={tab.id}
-              tabId={tab.id}
-              active={pane.activeTabId === tab.id}
-              onExit={() => onExit(tab.id)}
-              onExitCode={(code) => onExitCode(tab.id, code)}
-            />
-          ))
         )}
       </div>
     </div>

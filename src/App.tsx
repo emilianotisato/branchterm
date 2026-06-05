@@ -49,13 +49,55 @@ export default function App() {
     return pane?.activeTabId ?? null;
   }
 
+  function touchTabRecency(id: string) {
+    setTabRecency((prev) => [id, ...prev.filter((r) => r !== id)]);
+  }
+
   function activateTab(id: string) {
     setPanes(
       panesRef.current.map((p) =>
         p.id === focusedPaneIdRef.current ? { ...p, activeTabId: id } : p
       )
     );
-    setTabRecency((prev) => [id, ...prev.filter((r) => r !== id)]);
+    touchTabRecency(id);
+  }
+
+  function handleSelectTab(tabId: string) {
+    const paneWithTab = panesRef.current.find((p) => p.activeTabId === tabId);
+    if (paneWithTab) {
+      setFocusedPaneId(paneWithTab.id);
+      touchTabRecency(tabId);
+      return;
+    }
+    activateTab(tabId);
+  }
+
+  function handleOpenInNewPane(tabId: string) {
+    if (panesRef.current.some((p) => p.activeTabId === tabId)) return;
+    const newPane: Pane = { id: crypto.randomUUID(), activeTabId: tabId };
+    setPanes([...panesRef.current, newPane]);
+    setFocusedPaneId(newPane.id);
+    touchTabRecency(tabId);
+  }
+
+  function reconcilePanesAfterTabRemoval(
+    removedTabIds: Set<string>,
+    remainingTabs: TabEntry[]
+  ): Pane[] {
+    let current = [...panesRef.current];
+    for (const tabId of removedTabIds) {
+      const pane = current.find((p) => p.activeTabId === tabId);
+      if (!pane) continue;
+      if (current.length === 1) {
+        current = [{ ...pane, activeTabId: remainingTabs[0]?.id ?? null }];
+      } else {
+        current = current.filter((p) => p.id !== pane.id);
+      }
+    }
+    if (current.length === 0) {
+      current = [{ id: crypto.randomUUID(), activeTabId: remainingTabs[0]?.id ?? null }];
+    }
+    return current;
   }
 
   // Reads from refs — safe to capture in xterm or window event handlers (never stale)
@@ -182,12 +224,9 @@ export default function App() {
       return next;
     });
     setTabRecency((prev) => prev.filter((r) => r !== tabId));
-    setPanes(
-      panesRef.current.map((p) => {
-        if (p.activeTabId !== tabId) return p;
-        return { ...p, activeTabId: newTabs[0]?.id ?? null };
-      })
-    );
+    const newPanes = reconcilePanesAfterTabRemoval(new Set([tabId]), newTabs);
+    setPanes(newPanes);
+    setFocusedPaneId(newPanes[0].id);
     void branch;
   }
 
@@ -225,17 +264,17 @@ export default function App() {
       return next;
     });
     setTabRecency((prev) => prev.filter((r) => !idSet.has(r)));
-    setPanes(
-      panesRef.current.map((p) => {
-        if (!p.activeTabId || !idSet.has(p.activeTabId)) return p;
-        return { ...p, activeTabId: newTabs[0]?.id ?? null };
-      })
-    );
+    const newPanes = reconcilePanesAfterTabRemoval(idSet, newTabs);
+    setPanes(newPanes);
+    setFocusedPaneId(newPanes[0].id);
     void branch;
   }
 
   const activeTabId =
     panes.find((p) => p.id === focusedPaneId)?.activeTabId ?? null;
+  const paneTabIds = panes
+    .map((p) => p.activeTabId)
+    .filter((id): id is string => id !== null);
 
   // Unique branch names derived from tabBranch, __main__ first
   const availableBranches = [
@@ -247,8 +286,10 @@ export default function App() {
     <div className="app">
       <Sidebar
         activeTabId={activeTabId}
+        paneTabIds={paneTabIds}
         termStates={termStates}
-        onSelectTab={activateTab}
+        onSelectTab={handleSelectTab}
+        onOpenInNewPane={handleOpenInNewPane}
         onStateLoaded={handleStateLoaded}
         onTabCreated={handleTabCreated}
         onTabClosed={handleTabClosed}
@@ -293,7 +334,7 @@ export default function App() {
           tabBranch={tabBranch}
           currentTabId={activeTabId}
           onSelect={(tabId) => {
-            activateTab(tabId);
+            handleSelectTab(tabId);
             setCommandPaletteOpen(false);
           }}
           onClose={() => setCommandPaletteOpen(false)}

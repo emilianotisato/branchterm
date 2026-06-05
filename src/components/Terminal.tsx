@@ -7,18 +7,21 @@ import "@xterm/xterm/css/xterm.css";
 
 interface Props {
   tabId: string;
-  active: boolean;
+  visible: boolean;
+  focused: boolean;
   onExit: () => void;
   onExitCode: (code: number) => void;
 }
 
-export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
+export function Terminal({ tabId, visible, focused, onExit, onExitCode }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const unlistenExitRef = useRef<UnlistenFn | null>(null);
   const unlistenExitCodeRef = useRef<UnlistenFn | null>(null);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -67,12 +70,10 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
       term.write(bytes);
     }).then((ul) => { unlistenRef.current = ul; });
 
-    // PTY process died (shell itself exited)
     listen<boolean>(`pty-exit-${tabId}`, () => {
       onExit();
     }).then((ul) => { unlistenExitRef.current = ul; });
 
-    // Startup command exited — inline wrapper emits branchterm;ec=N OSC sequence
     listen<number>(`pty-exit-code-${tabId}`, (event) => {
       onExitCode(event.payload);
     }).then((ul) => { unlistenExitCodeRef.current = ul; });
@@ -81,9 +82,6 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
       invoke("pty_input", { tabId, data }).catch(console.error);
     });
 
-    // Block handled Ctrl+Shift combos from reaching the PTY process.
-    // The actual actions are handled by a global window listener in App.tsx,
-    // which fires regardless of which element has DOM focus.
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
       if (!e.ctrlKey || !e.shiftKey || e.type !== "keydown") return true;
       switch (e.code) {
@@ -98,6 +96,7 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
     });
 
     const ro = new ResizeObserver(() => {
+      if (!visibleRef.current) return;
       fit.fit();
       invoke("pty_resize", {
         tabId,
@@ -116,18 +115,30 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
     };
   }, [tabId]);
 
-  // Refocus terminal when scratchpad collapses via Escape.
   useEffect(() => {
-    if (!active) return;
+    if (!focused) return;
     function handler() { termRef.current?.focus(); }
     window.addEventListener("branchterm:focus-terminal", handler);
     return () => window.removeEventListener("branchterm:focus-terminal", handler);
-  }, [active]);
+  }, [focused]);
 
-  // Window capture listener intercepts Shift+Enter before xterm.js sees it.
-  // Sends kitty keyboard protocol sequence so Claude Code can insert newlines.
   useEffect(() => {
-    if (!active) return;
+    if (!visible) return;
+    function onLayoutChange() {
+      const fit = fitRef.current;
+      const term = termRef.current;
+      if (!fit || !term) return;
+      requestAnimationFrame(() => {
+        fit.fit();
+        invoke("pty_resize", { tabId, cols: term.cols, rows: term.rows }).catch(console.error);
+      });
+    }
+    window.addEventListener("branchterm:pane-layout-changed", onLayoutChange);
+    return () => window.removeEventListener("branchterm:pane-layout-changed", onLayoutChange);
+  }, [visible, tabId]);
+
+  useEffect(() => {
+    if (!focused) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.type !== "keydown") return;
       if (!e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
@@ -138,10 +149,10 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
     }
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-  }, [active, tabId]);
+  }, [focused, tabId]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!visible) return;
 
     const sendResize = () => {
       const fit = fitRef.current;
@@ -154,11 +165,9 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
     let t1: ReturnType<typeof setTimeout>;
     let t2: ReturnType<typeof setTimeout>;
 
-    // rAF fires after browser layout is committed, so offsetWidth/offsetHeight are real
     const raf = requestAnimationFrame(() => {
       sendResize();
-      termRef.current?.focus();
-      // retries for TUIs that need more than one SIGWINCH to redraw
+      if (focused) termRef.current?.focus();
       t1 = setTimeout(sendResize, 100);
       t2 = setTimeout(sendResize, 350);
     });
@@ -168,16 +177,15 @@ export function Terminal({ tabId, active, onExit, onExitCode }: Props) {
       clearTimeout(t1);
       clearTimeout(t2);
     };
-  }, [active, tabId]);
+  }, [visible, focused, tabId]);
 
   return (
     <div
       ref={containerRef}
+      className="terminal-host"
       style={{
-        position: "absolute",
-        inset: 0,
-        visibility: active ? "visible" : "hidden",
-        pointerEvents: active ? "auto" : "none",
+        visibility: visible ? "visible" : "hidden",
+        pointerEvents: focused ? "auto" : "none",
       }}
     />
   );
