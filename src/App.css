@@ -277,14 +277,52 @@ html, body, #root {
   color: #fff;
 }
 
-/* Main area */
-.main-area {
+/* Pane layout */
+.pane-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  background: var(--bg);
+  padding-left: 4px;
+}
+
+.pane {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg);
-  padding-left: 4px;
+  min-width: 0;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.pane-header-focused {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  background: #2a2d2e;
+}
+
+.pane-header-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane-terminal-area {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
 }
 
 .placeholder {
@@ -583,13 +621,6 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-/* Command picker overlay */
-.terminal-area {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
 }
 
 .cmd-picker-overlay {

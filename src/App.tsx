@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Sidebar, AppState } from "./components/Sidebar";
-import { MainArea, TabEntry } from "./components/MainArea";
+import { PaneLayout } from "./components/PaneLayout";
+import { TabEntry } from "./components/MainArea";
 import { Scratchpad } from "./components/Scratchpad";
 import { CommandPalette } from "./components/CommandPalette";
 import { BranchPicker } from "./components/BranchPicker";
 import { ShortcutsModal } from "./components/ShortcutsModal";
-import { TermState } from "./types";
+import { Pane, TermState } from "./types";
 import "./App.css";
 
 export default function App() {
@@ -20,15 +21,22 @@ export default function App() {
   const [tabBranch, setTabBranch] = useState<Record<string, string>>({});
   const [termStates, setTermStates] = useState<Record<string, TermState>>({});
 
-  // State + refs in sync so handleSwitchTab (called from terminal event handlers) is never stale
-  const [activeTabId, setActiveTabIdState] = useState<string | null>(null);
-  const activeTabIdRef = useRef<string | null>(null);
+  const [panes, setPanesState] = useState<Pane[]>([]);
+  const panesRef = useRef<Pane[]>([]);
+  const [focusedPaneId, setFocusedPaneIdState] = useState<string | null>(null);
+  const focusedPaneIdRef = useRef<string | null>(null);
+
   const [allTabs, setAllTabsState] = useState<TabEntry[]>([]);
   const allTabsRef = useRef<TabEntry[]>([]);
 
-  function setActiveTabId(id: string | null) {
-    activeTabIdRef.current = id;
-    setActiveTabIdState(id);
+  function setPanes(panes: Pane[]) {
+    panesRef.current = panes;
+    setPanesState(panes);
+  }
+
+  function setFocusedPaneId(id: string | null) {
+    focusedPaneIdRef.current = id;
+    setFocusedPaneIdState(id);
   }
 
   function setAllTabs(tabs: TabEntry[]) {
@@ -36,28 +44,37 @@ export default function App() {
     setAllTabsState(tabs);
   }
 
+  function getFocusedActiveTabId(): string | null {
+    const pane = panesRef.current.find((p) => p.id === focusedPaneIdRef.current);
+    return pane?.activeTabId ?? null;
+  }
+
   function activateTab(id: string) {
-    activeTabIdRef.current = id;
-    setActiveTabIdState(id);
-    setTabRecency(prev => [id, ...prev.filter(r => r !== id)]);
+    setPanes(
+      panesRef.current.map((p) =>
+        p.id === focusedPaneIdRef.current ? { ...p, activeTabId: id } : p
+      )
+    );
+    setTabRecency((prev) => [id, ...prev.filter((r) => r !== id)]);
   }
 
   // Reads from refs — safe to capture in xterm or window event handlers (never stale)
   function handleSwitchTab(dir: "next" | "prev") {
     const tabs = allTabsRef.current;
-    const currentId = activeTabIdRef.current;
+    const currentId = getFocusedActiveTabId();
     if (!currentId || tabs.length <= 1) return;
-    const idx = tabs.findIndex(t => t.id === currentId);
+    const idx = tabs.findIndex((t) => t.id === currentId);
     if (idx === -1) return;
-    const nextIdx = dir === "next"
-      ? (idx + 1) % tabs.length
-      : (idx - 1 + tabs.length) % tabs.length;
+    const nextIdx =
+      dir === "next"
+        ? (idx + 1) % tabs.length
+        : (idx - 1 + tabs.length) % tabs.length;
     activateTab(tabs[nextIdx].id);
   }
 
   function handleOpenScratchpad() {
     setScratchpadOpen(true);
-    setScratchpadFocusCounter(c => c + 1);
+    setScratchpadFocusCounter((c) => c + 1);
   }
 
   // Global Ctrl+Shift shortcuts — fires regardless of which element has DOM focus,
@@ -99,6 +116,12 @@ export default function App() {
     return tab.autostart ? "running" : "idle";
   }
 
+  function initPanes(firstTabId: string | null) {
+    const pane: Pane = { id: crypto.randomUUID(), activeTabId: firstTabId };
+    setPanes([pane]);
+    setFocusedPaneId(pane.id);
+  }
+
   function handleStateLoaded(state: AppState) {
     const tabs: TabEntry[] = [
       ...state.mainTabs,
@@ -120,7 +143,7 @@ export default function App() {
     }
     setTermStates(initial);
     setTabBranch(branchMap);
-    setTabRecency(tabs.map(t => t.id));
+    setTabRecency(tabs.map((t) => t.id));
 
     for (const tab of state.mainTabs) {
       invoke("spawn_tab", { branch: "__main__", tabId: tab.id }).catch(console.error);
@@ -131,13 +154,12 @@ export default function App() {
       }
     }
 
-    if (state.mainTabs.length > 0) {
-      activateTab(state.mainTabs[0].id);
-    }
+    const firstTabId = state.mainTabs[0]?.id ?? null;
+    initPanes(firstTabId);
   }
 
   function handleTabCreated(branch: string, tab: TabEntry) {
-    if (!allTabsRef.current.find(t => t.id === tab.id)) {
+    if (!allTabsRef.current.find((t) => t.id === tab.id)) {
       setAllTabs([...allTabsRef.current, tab]);
     }
     setTermStates((prev) => ({ ...prev, [tab.id]: computeInitialState(tab) }));
@@ -147,7 +169,7 @@ export default function App() {
   }
 
   function handleTabClosed(branch: string, tabId: string) {
-    const newTabs = allTabsRef.current.filter(t => t.id !== tabId);
+    const newTabs = allTabsRef.current.filter((t) => t.id !== tabId);
     setAllTabs(newTabs);
     setTermStates((prev) => {
       const next = { ...prev };
@@ -159,12 +181,13 @@ export default function App() {
       delete next[tabId];
       return next;
     });
-    setTabRecency((prev) => prev.filter(r => r !== tabId));
-    if (activeTabIdRef.current === tabId) {
-      const fallback = newTabs[0]?.id ?? null;
-      if (fallback) activateTab(fallback);
-      else setActiveTabId(null);
-    }
+    setTabRecency((prev) => prev.filter((r) => r !== tabId));
+    setPanes(
+      panesRef.current.map((p) => {
+        if (p.activeTabId !== tabId) return p;
+        return { ...p, activeTabId: newTabs[0]?.id ?? null };
+      })
+    );
     void branch;
   }
 
@@ -189,7 +212,7 @@ export default function App() {
 
   function handleBranchDeleted(branch: string, tabIds: string[]) {
     const idSet = new Set(tabIds);
-    const newTabs = allTabsRef.current.filter(t => !idSet.has(t.id));
+    const newTabs = allTabsRef.current.filter((t) => !idSet.has(t.id));
     setAllTabs(newTabs);
     setTermStates((prev) => {
       const next = { ...prev };
@@ -201,19 +224,23 @@ export default function App() {
       for (const id of tabIds) delete next[id];
       return next;
     });
-    setTabRecency((prev) => prev.filter(r => !idSet.has(r)));
-    if (activeTabIdRef.current && idSet.has(activeTabIdRef.current)) {
-      const fallback = newTabs[0]?.id ?? null;
-      if (fallback) activateTab(fallback);
-      else setActiveTabId(null);
-    }
+    setTabRecency((prev) => prev.filter((r) => !idSet.has(r)));
+    setPanes(
+      panesRef.current.map((p) => {
+        if (!p.activeTabId || !idSet.has(p.activeTabId)) return p;
+        return { ...p, activeTabId: newTabs[0]?.id ?? null };
+      })
+    );
     void branch;
   }
+
+  const activeTabId =
+    panes.find((p) => p.id === focusedPaneId)?.activeTabId ?? null;
 
   // Unique branch names derived from tabBranch, __main__ first
   const availableBranches = [
     "__main__",
-    ...[...new Set(Object.values(tabBranch).filter(b => b !== "__main__"))],
+    ...[...new Set(Object.values(tabBranch).filter((b) => b !== "__main__"))],
   ];
 
   return (
@@ -231,9 +258,12 @@ export default function App() {
         onExternalModalClose={() => setNewTabBranch(null)}
         onOpenShortcuts={() => setShortcutsOpen(true)}
       />
-      <MainArea
-        activeTabId={activeTabId}
+      <PaneLayout
+        panes={panes}
+        focusedPaneId={focusedPaneId}
         allTabs={allTabs}
+        tabBranch={tabBranch}
+        onFocusPane={setFocusedPaneId}
         onExit={(tabId) => handleTermEvent(tabId, "exit")}
         onExitCode={(tabId, code) => handleTermEvent(tabId, { exitCode: code })}
       />
