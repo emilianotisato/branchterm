@@ -33,6 +33,7 @@ export default function App() {
 
   const [allTabs, setAllTabsState] = useState<TabEntry[]>([]);
   const allTabsRef = useRef<TabEntry[]>([]);
+  const bootSpawnedRef = useRef(false);
 
   function setPanedViews(views: PanedView[]) {
     panedViewsRef.current = views;
@@ -230,12 +231,15 @@ export default function App() {
     setTabBranch(branchMap);
     setTabRecency(tabs.map((t) => t.id));
 
-    for (const tab of state.mainTabs) {
-      invoke("spawn_tab", { branch: "__main__", tabId: tab.id }).catch(console.error);
-    }
-    for (const branch of state.branches) {
-      for (const tab of branch.tabs) {
-        invoke("spawn_tab", { branch: branch.name, tabId: tab.id }).catch(console.error);
+    if (!bootSpawnedRef.current) {
+      bootSpawnedRef.current = true;
+      for (const tab of state.mainTabs) {
+        invoke("spawn_tab", { branch: "__main__", tabId: tab.id }).catch(console.error);
+      }
+      for (const branch of state.branches) {
+        for (const tab of branch.tabs) {
+          invoke("spawn_tab", { branch: branch.name, tabId: tab.id }).catch(console.error);
+        }
       }
     }
 

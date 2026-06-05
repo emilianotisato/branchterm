@@ -10,11 +10,18 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use tauri::{AppHandle, Emitter};
 
+/// Minimum cols from a real terminal layout before injection proceeds.
+const SIZED_COLS_THRESHOLD: u16 = 40;
+
 pub struct PtyHandle {
     writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
     child: Arc<Mutex<Box<dyn portable_pty::Child + Send + Sync>>>,
     child_pid: Option<u32>,
+    /// Set when the frontend reports a real terminal size (not the offscreen
+    /// placeholder). Injection waits for this so startup output isn't wrapped
+    /// at ~8 cols.
+    pub sized: Arc<AtomicBool>,
     /// Gating flag: set to true just before the first startup command is
     /// written. Prevents the initial shell prompt's PROMPT_COMMAND firing
     /// (exit code 0) from transitioning state before the command runs.
@@ -198,8 +205,11 @@ pub fn spawn_pty(
     app_handle: AppHandle,
     pty_map: &PtyMap,
 ) -> Result<(), String> {
-    if pty_map.lock().unwrap().contains_key(&tab_id) {
-        return Ok(());
+    {
+        let map = pty_map.lock().unwrap();
+        if map.contains_key(&tab_id) {
+            return Ok(());
+        }
     }
 
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
@@ -243,22 +253,34 @@ pub fn spawn_pty(
 
     let child_arc = Arc::new(Mutex::new(child));
     let child_for_watcher = Arc::clone(&child_arc);
+    let sized = Arc::new(AtomicBool::new(false));
     let command_started = Arc::new(AtomicBool::new(false));
     let command_started_reader = Arc::clone(&command_started);
     let command_started_injector = Arc::clone(&command_started);
 
-    {
+    let won_insert = {
         let mut map = pty_map.lock().unwrap();
-        map.insert(
-            tab_id.clone(),
-            PtyHandle {
-                writer,
-                master: pair.master,
-                child: child_arc,
-                child_pid,
-                command_started,
-            },
-        );
+        if map.contains_key(&tab_id) {
+            false
+        } else {
+            map.insert(
+                tab_id.clone(),
+                PtyHandle {
+                    writer,
+                    master: pair.master,
+                    child: child_arc,
+                    child_pid,
+                    sized,
+                    command_started,
+                },
+            );
+            true
+        }
+    };
+
+    if !won_insert {
+        child_for_watcher.lock().unwrap().kill().ok();
+        return Ok(());
     }
 
     let (exit_tx, exit_rx) = std::sync::mpsc::channel::<()>();
@@ -317,6 +339,21 @@ pub fn spawn_pty(
     let tab_clone = tab_id.clone();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(800));
+
+        // Wait for the frontend to report a real terminal size. Hidden tabs use
+        // an 80px offscreen slot; resizing to that wraps output at ~8 cols.
+        for _ in 0..100 {
+            let ready = {
+                let map = pty_map_clone.lock().unwrap();
+                map.get(&tab_clone)
+                    .map(|h| h.sized.load(Ordering::Relaxed))
+                    .unwrap_or(false)
+            };
+            if ready {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
 
         // Inject PROMPT_COMMAND after .bashrc has run (overrides any starship/custom setup).
         // Uses `; clear` to wipe the visible injection line from the terminal.
@@ -391,6 +428,9 @@ pub fn resize_pty(tab_id: &str, cols: u16, rows: u16, pty_map: &PtyMap) -> Resul
     let handle = map
         .get(tab_id)
         .ok_or_else(|| format!("No PTY for tab '{tab_id}'"))?;
+    if cols >= SIZED_COLS_THRESHOLD {
+        handle.sized.store(true, Ordering::Relaxed);
+    }
     handle.resize(cols, rows)
 }
 

@@ -23,7 +23,10 @@ export function Terminal({ tabId, visible, focused, settling = false, onExit, on
   const unlistenExitCodeRef = useRef<UnlistenFn | null>(null);
   const visibleRef = useRef(visible);
   const refitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialClearDoneRef = useRef(false);
   visibleRef.current = visible;
+
+  const MIN_RESIZE_WIDTH = 100;
 
   function refitTerminal() {
     const fit = fitRef.current;
@@ -31,18 +34,23 @@ export function Terminal({ tabId, visible, focused, settling = false, onExit, on
     if (!fit || !term || !visibleRef.current || !containerRef.current) return;
 
     const { clientWidth, clientHeight } = containerRef.current;
-    if (clientWidth < 2 || clientHeight < 2) return;
+    if (clientWidth < MIN_RESIZE_WIDTH || clientHeight < 2) return;
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (!fitRef.current || !termRef.current || !visibleRef.current) return;
         fitRef.current.fit();
         termRef.current.refresh(0, termRef.current.rows - 1);
-        invoke("pty_resize", {
-          tabId,
-          cols: termRef.current.cols,
-          rows: termRef.current.rows,
-        }).catch(console.error);
+        const cols = termRef.current.cols;
+        const rows = termRef.current.rows;
+        invoke("pty_resize", { tabId, cols, rows })
+          .then(() => {
+            if (!initialClearDoneRef.current && cols >= 40) {
+              initialClearDoneRef.current = true;
+              invoke("pty_input", { tabId, data: "\x1b[2J\x1b[3J\x1b[H" }).catch(console.error);
+            }
+          })
+          .catch(console.error);
       });
     });
   }
@@ -89,7 +97,6 @@ export function Terminal({ tabId, visible, focused, settling = false, onExit, on
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(containerRef.current);
-    fit.fit();
 
     termRef.current = term;
     fitRef.current = fit;
