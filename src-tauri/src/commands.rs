@@ -280,8 +280,8 @@ pub async fn get_commands() -> Result<Vec<FreqCommand>, String> {
 }
 
 #[tauri::command]
-pub async fn save_command(name: String, label: String, cmd: String) -> Result<FreqCommand, String> {
-    commands_store::add(name, label, cmd)
+pub async fn save_command(label: String, cmd: String) -> Result<FreqCommand, String> {
+    commands_store::add(label, cmd)
 }
 
 #[tauri::command]

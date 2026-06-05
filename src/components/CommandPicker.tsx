@@ -1,6 +1,5 @@
 export interface FreqCommand {
   id: string;
-  name: string;
   label: string;
   cmd: string;
   createdAt: string;

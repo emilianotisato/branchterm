@@ -224,7 +224,6 @@ function CommandsSection() {
   const [commands, setCommands] = useState<FreqCommand[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
   const [label, setLabel] = useState("");
   const [cmdStr, setCmdStr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -234,15 +233,13 @@ function CommandsSection() {
   }, []);
 
   async function handleAdd() {
-    const n = name.trim();
     const l = label.trim();
     const c = cmdStr.trim();
-    if (!n || !l || !c) return;
+    if (!l || !c) return;
     setSaving(true);
     try {
-      const created = await invoke<FreqCommand>("save_command", { name: n, label: l, cmd: c });
+      const created = await invoke<FreqCommand>("save_command", { label: l, cmd: c });
       setCommands((prev) => [...prev, created]);
-      setName("");
       setLabel("");
       setCmdStr("");
       setAdding(false);
@@ -281,18 +278,11 @@ function CommandsSection() {
             <div className="cmd-add-form">
               <input
                 type="text"
-                placeholder="name (e.g. run-tests)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={saving}
-                autoFocus
-              />
-              <input
-                type="text"
                 placeholder="label (e.g. Run tests)"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 disabled={saving}
+                autoFocus
               />
               <input
                 type="text"
@@ -303,7 +293,6 @@ function CommandsSection() {
                   if (e.key === "Enter") handleAdd();
                   if (e.key === "Escape") {
                     setAdding(false);
-                    setName("");
                     setLabel("");
                     setCmdStr("");
                   }
@@ -318,7 +307,6 @@ function CommandsSection() {
                   className="btn btn-ghost"
                   onClick={() => {
                     setAdding(false);
-                    setName("");
                     setLabel("");
                     setCmdStr("");
                   }}
@@ -336,10 +324,7 @@ function CommandsSection() {
           {commands.map((c) => (
             <div key={c.id} className="cmd-item">
               <div className="cmd-item-info">
-                <div className="cmd-item-label">
-                  {c.label}
-                  {c.name && <span className="cmd-item-name">{c.name}</span>}
-                </div>
+                <div className="cmd-item-label">{c.label}</div>
                 <code className="cmd-item-cmd">{c.cmd}</code>
               </div>
               <button
